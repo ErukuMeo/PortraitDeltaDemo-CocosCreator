@@ -2,6 +2,8 @@
  * .pdpack 解析结果的数据结构定义
  */
 
+import { RawImage } from "./RawImage";
+
 /** 差异区域信息 */
 export interface PdpackRegionInfo {
   /** 区域在基础图上的 x 偏移（像素，相对于左上角） */
@@ -12,6 +14,8 @@ export interface PdpackRegionInfo {
   width: number;
   /** 区域高度（像素） */
   height: number;
+  /** 解码后的 RGBA 像素数据 */
+  rawImage?: RawImage;
 }
 
 /** 单个变体的完整信息 */
@@ -34,6 +38,8 @@ export class PdpackData {
   imageHeight: number = 0;
   /** 基础图 PNG 原始字节 */
   basePng: Uint8Array | null = null;
+  /** 解码后的基础图 RGBA 像素数据 */
+  baseRawImage: RawImage | null = null;
   /** 基准变体名称 */
   baseVariantName: string = '';
   /** 所有变体列表 */

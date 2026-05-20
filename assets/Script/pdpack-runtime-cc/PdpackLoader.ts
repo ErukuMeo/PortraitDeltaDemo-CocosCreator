@@ -1,5 +1,6 @@
 import { PdpackBinaryReader } from "./PdpackBinaryReader";
 import { PdpackData, PdpackRegionInfo } from "./PdpackData";
+import { RawImage } from "./RawImage";
 
 /** 注册 .pdpack 扩展管线（模块加载时执行一次） */
 let _registered = false;
@@ -174,6 +175,7 @@ export class PdpackLoader {
 
     // --- 3. 数据段提取 ---
     data.basePng = new Uint8Array(buffer.slice(baseOffset, baseOffset + baseSize));
+    data.baseRawImage = RawImage.fromPng(data.basePng);
 
     const metaBytes = new Uint8Array(buffer.slice(metaOffset, metaOffset + metaSize));
     const metaJson = PdpackLoader._decodeUtf8(metaBytes);
@@ -196,8 +198,10 @@ export class PdpackLoader {
           throw new Error(`PdpackLoader.parse: metadata region mismatch at variant ${vi}, region ${ri}`);
         }
 
+        const pngBytes = new Uint8Array(buffer.slice(regionOffset, regionOffset + regionSize));
         regions.push(metaRegion);
-        pngs.push(new Uint8Array(buffer.slice(regionOffset, regionOffset + regionSize)));
+        pngs.push(pngBytes);
+        metaRegion.rawImage = RawImage.fromPng(pngBytes);
       }
 
       variantRegionInfos.push(regions);
