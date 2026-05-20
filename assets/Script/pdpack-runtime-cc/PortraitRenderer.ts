@@ -16,28 +16,22 @@ export class PortraitRenderer {
   }
 
   /** 渲染指定变体 */
-  render(data: PdpackData, variantIndex: number): Promise<void> {
+  render(data: PdpackData, variantIndex: number): void {
     this.dispose();
 
     const variant = data.getVariant(variantIndex);
     if (!variant) {
-      return Promise.reject(
-        new Error(`PortraitRenderer.render: invalid variant index ${variantIndex}`),
-      );
+      throw new Error(`PortraitRenderer.render: invalid variant index ${variantIndex}`);
     }
     if (!data.baseRawImage) {
-      return Promise.reject(
-        new Error("PortraitRenderer.render: PdpackData has no decoded base image"),
-      );
+      throw new Error("PortraitRenderer.render: PdpackData has no decoded base image");
     }
 
     const spriteFrame = this._mergeToSpriteFrame(data.baseRawImage, variant.regions);
     this._mergedTexture = spriteFrame.getTexture();
 
-    const texW = data.baseRawImage.width;
-    const texH = data.baseRawImage.height;
-    if (!data.imageWidth) data.imageWidth = texW;
-    if (!data.imageHeight) data.imageHeight = texH;
+    const texW = data.imageWidth || data.baseRawImage.width;
+    const texH = data.imageHeight || data.baseRawImage.height;
 
     const maxSize = Math.min(cc.winSize.width, cc.winSize.height) * 0.85;
     const scale = Math.min(1, maxSize / Math.max(texW, texH));
@@ -54,22 +48,16 @@ export class PortraitRenderer {
     this._sprite = spriteNode.addComponent(cc.Sprite);
     this._sprite.spriteFrame = spriteFrame;
     this._sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
-
-    return Promise.resolve();
   }
 
   /** 切换变体（复用节点，仅替换合并后的纹理） */
-  switchVariant(data: PdpackData, variantIndex: number): Promise<void> {
+  switchVariant(data: PdpackData, variantIndex: number): void {
     const variant = data.getVariant(variantIndex);
     if (!variant) {
-      return Promise.reject(
-        new Error(`PortraitRenderer.switchVariant: invalid variant index ${variantIndex}`),
-      );
+      throw new Error(`PortraitRenderer.switchVariant: invalid variant index ${variantIndex}`);
     }
     if (!this._sprite || !data.baseRawImage) {
-      return Promise.reject(
-        new Error("PortraitRenderer.switchVariant: render() must be called first"),
-      );
+      throw new Error("PortraitRenderer.switchVariant: render() must be called first");
     }
 
     const spriteFrame = this._mergeToSpriteFrame(data.baseRawImage, variant.regions);
@@ -81,15 +69,12 @@ export class PortraitRenderer {
     if (oldTexture) {
       oldTexture.destroy();
     }
-
-    return Promise.resolve();
   }
 
   /** 释放所有渲染节点和纹理 */
   dispose(): void {
     if (this._rootNode) {
       this._rootNode.removeFromParent(true);
-      this._rootNode.destroy();
       this._rootNode = null;
     }
     if (this._mergedTexture) {

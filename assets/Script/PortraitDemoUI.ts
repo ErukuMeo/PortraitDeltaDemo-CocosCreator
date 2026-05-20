@@ -127,12 +127,10 @@ export default class PortraitDemoUI extends cc.Component {
     }
 
     private _onVariantBtnClick(index: number): void {
-        this._controller.switchToVariant(index).catch((e) => {
-            cc.error("切换变体失败:", e);
-        });
+        this._controller.switchToVariant(index);
     }
 
-    private _onKeyDown(event: any): void {
+    private _onKeyDown(event: cc.SystemEvent.EventKeyboard): void {
         if (!this._controller || !this._controller.isLoaded) return;
 
         switch (event.keyCode) {
@@ -149,14 +147,14 @@ export default class PortraitDemoUI extends cc.Component {
         const total = this._controller.variantCount;
         const cur = this._controller.currentVariantIndex;
         const next = (cur - 1 + total) % total;
-        this._controller.switchToVariant(next).catch((e) => cc.error(e));
+        this._controller.switchToVariant(next);
     }
 
     private _nextVariant(): void {
         const total = this._controller.variantCount;
         const cur = this._controller.currentVariantIndex;
         const next = (cur + 1) % total;
-        this._controller.switchToVariant(next).catch((e) => cc.error(e));
+        this._controller.switchToVariant(next);
     }
 
     private _updateUI(): void {

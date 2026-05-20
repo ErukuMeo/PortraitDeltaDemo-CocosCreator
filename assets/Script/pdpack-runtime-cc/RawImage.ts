@@ -51,11 +51,7 @@ export class RawImage {
 
   /** Decode a PNG byte buffer into a RawImage. */
   static fromPng(pngBytes: Uint8Array): RawImage {
-    const buffer = pngBytes.buffer.slice(
-      pngBytes.byteOffset,
-      pngBytes.byteOffset + pngBytes.byteLength,
-    );
-    const img = UPNG.decode(buffer);
+    const img = UPNG.decode(pngBytes);
     const rgba = UPNG.toRGBA8(img);
     return new RawImage(img.width, img.height, new Uint8Array(rgba[0]));
   }

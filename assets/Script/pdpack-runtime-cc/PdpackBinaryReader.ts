@@ -80,11 +80,6 @@ export class PdpackBinaryReader {
     return this._buffer.byteLength - this._position;
   }
 
-  /** 是否还有剩余字节可读 */
-  hasRemaining(): boolean {
-    return this._position < this._buffer.byteLength;
-  }
-
   private _checkBounds(size: number): void {
     if (this._position + size > this._buffer.byteLength) {
       throw new Error(

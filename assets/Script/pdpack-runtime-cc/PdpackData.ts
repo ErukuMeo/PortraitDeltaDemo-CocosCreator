@@ -24,8 +24,6 @@ export interface PdpackVariantInfo {
   name: string;
   /** 该变体的所有差异区域元数据 */
   regions: PdpackRegionInfo[];
-  /** 各区域的原始 PNG 字节（与 regions 数组一一对应） */
-  regionPngs: Uint8Array[];
 }
 
 /** 解析后的 pdpack 文件数据 */
@@ -36,8 +34,6 @@ export class PdpackData {
   imageWidth: number = 0;
   /** 立绘图像总高度（像素） */
   imageHeight: number = 0;
-  /** 基础图 PNG 原始字节 */
-  basePng: Uint8Array | null = null;
   /** 解码后的基础图 RGBA 像素数据 */
   baseRawImage: RawImage | null = null;
   /** 基准变体名称 */

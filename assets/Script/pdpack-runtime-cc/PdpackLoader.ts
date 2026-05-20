@@ -51,6 +51,9 @@ function isUuid(s: string): boolean {
  * 通过 CC 标准管线（downloader → factory）加载 .pdpack 二进制文件并解析
  */
 export class PdpackLoader {
+  /** Set to true to enable verbose parse logging */
+  static verbose: boolean = false;
+
   /**
    * 通用加载入口，自动识别输入类型：
    * - UUID（如 ecd7233f-...）→ cc.assetManager.loadAny（绕过 bundle，推荐）
@@ -174,20 +177,21 @@ export class PdpackLoader {
     if (metaSize === 0) throw new Error("PdpackLoader.parse: metadata size is 0");
 
     // --- 3. 数据段提取 ---
-    data.basePng = new Uint8Array(buffer.slice(baseOffset, baseOffset + baseSize));
-    data.baseRawImage = RawImage.fromPng(data.basePng);
+    const basePngBytes = new Uint8Array(buffer.slice(baseOffset, baseOffset + baseSize));
+    data.baseRawImage = RawImage.fromPng(basePngBytes);
+
+    if (!data.imageWidth) data.imageWidth = data.baseRawImage.width;
+    if (!data.imageHeight) data.imageHeight = data.baseRawImage.height;
 
     const metaBytes = new Uint8Array(buffer.slice(metaOffset, metaOffset + metaSize));
     const metaJson = PdpackLoader._decodeUtf8(metaBytes);
     const metadata = PdpackLoader._parseMetadata(metaJson, data);
 
     const variantRegionInfos: PdpackRegionInfo[][] = [];
-    const variantRegionPngs: Uint8Array[][] = [];
 
     for (let vi = 0; vi < variantCount; vi++) {
       const regionCount = reader.readUint16();
       const regions: PdpackRegionInfo[] = [];
-      const pngs: Uint8Array[] = [];
 
       for (let ri = 0; ri < regionCount; ri++) {
         const regionOffset = reader.readUint32();
@@ -200,35 +204,21 @@ export class PdpackLoader {
 
         const pngBytes = new Uint8Array(buffer.slice(regionOffset, regionOffset + regionSize));
         regions.push(metaRegion);
-        pngs.push(pngBytes);
         metaRegion.rawImage = RawImage.fromPng(pngBytes);
       }
 
       variantRegionInfos.push(regions);
-      variantRegionPngs.push(pngs);
     }
 
     // --- 4. 组装 PdpackData ---
     for (let vi = 0; vi < variantCount; vi++) {
       const name = metadata.variantNames[vi] || String(vi);
-      const regions = variantRegionInfos[vi];
-      const pngs = variantRegionPngs[vi];
-      cc.log(`[PdpackLoader] variant[${vi}] '${name}': ${regions.length} regions, ${pngs.length} pngs`);
-      for (let ri = 0; ri < regions.length; ri++) {
-        const r = regions[ri];
-        cc.log(`  region[${ri}]: x=${r.x} y=${r.y} w=${r.width} h=${r.height} pngBytes=${pngs[ri]?.length || 0}`);
-      }
-      data.variants.push({ name, regions, regionPngs: pngs });
+      data.variants.push({ name, regions: variantRegionInfos[vi] });
     }
 
     // --- 5. 确保基准变体在列表中 ---
     if (data.baseVariantName && !data.variants.some(v => v.name === data.baseVariantName)) {
-      data.variants.unshift({
-        name: data.baseVariantName,
-        regions: [],
-        regionPngs: [],
-      });
-      cc.log(`[PdpackLoader] prepended base variant '${data.baseVariantName}' at index 0`);
+      data.variants.unshift({ name: data.baseVariantName, regions: [] });
     }
 
     return data;
@@ -243,9 +233,11 @@ export class PdpackLoader {
       throw new Error(`PdpackLoader.parse: invalid metadata JSON: ${e}\nFirst 100 chars: ${preview}`);
     }
 
-    cc.log('[PdpackLoader] metadata keys:', Object.keys(meta));
-    cc.log('[PdpackLoader] width/height/base:', meta.width, meta.height,
-      typeof meta.base === 'object' ? JSON.stringify(meta.base) : meta.base);
+    if (PdpackLoader.verbose) {
+      cc.log('[PdpackLoader] metadata keys:', Object.keys(meta));
+      cc.log('[PdpackLoader] width/height/base:', meta.width, meta.height,
+        typeof meta.base === 'object' ? JSON.stringify(meta.base) : meta.base);
+    }
 
     if (meta.width !== undefined) data.imageWidth = meta.width;
     if (meta.height !== undefined) data.imageHeight = meta.height;
@@ -287,8 +279,25 @@ export class PdpackLoader {
       return new TextDecoder("utf-8").decode(bytes);
     }
     let str = "";
-    for (let i = 0; i < bytes.length; i++) {
-      str += String.fromCharCode(bytes[i]);
+    let i = 0;
+    while (i < bytes.length) {
+      const byte1 = bytes[i++];
+      if (byte1 < 0x80) {
+        str += String.fromCharCode(byte1);
+      } else if (byte1 < 0xE0) {
+        const byte2 = bytes[i++];
+        str += String.fromCharCode(((byte1 & 0x1F) << 6) | (byte2 & 0x3F));
+      } else if (byte1 < 0xF0) {
+        const byte2 = bytes[i++];
+        const byte3 = bytes[i++];
+        str += String.fromCharCode(((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F));
+      } else {
+        const byte2 = bytes[i++];
+        const byte3 = bytes[i++];
+        const byte4 = bytes[i++];
+        const cp = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
+        str += String.fromCodePoint(cp);
+      }
     }
     return str;
   }
