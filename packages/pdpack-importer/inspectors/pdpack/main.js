@@ -85,22 +85,18 @@ const panel = {
 `,
     style: `
     .pdpack-inspector {
-        padding: 4px 0 8px;
+        padding: 4px 0 0;
         box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        height: calc(100vh - 12px);
-        min-height: 420px;
-        overflow: hidden;
+        min-height: 100vh;
         color: var(--color-normal-contrast);
         font-size: 12px;
         line-height: 1.45;
     }
 
     .pdpack-main {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow: auto;
+        box-sizing: border-box;
+        min-height: 100vh;
+        padding-bottom: calc(46vh + 88px);
         padding-right: 4px;
     }
 
@@ -120,9 +116,15 @@ const panel = {
     }
 
     .pdpack-preview-section {
-        flex: 0 0 auto;
-        z-index: 1;
-        margin: 8px 0 0;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 20;
+        box-sizing: border-box;
+        margin: 0;
+        max-height: 54vh;
+        overflow: hidden;
         box-shadow: 0 -6px 10px rgba(0, 0, 0, 0.18);
     }
 
@@ -194,7 +196,7 @@ const panel = {
         position: relative;
         margin-top: 8px;
         min-height: 140px;
-        max-height: 45vh;
+        max-height: calc(54vh - 82px);
         overflow: auto;
         border: 1px solid var(--color-normal-border);
         background-color: #808080;
@@ -535,10 +537,14 @@ function loadImages(sources, callback) {
     sources.forEach((source, index) => {
         const image = new Image();
         let finished = false;
+        const timer = setTimeout(() => {
+            finish(new Error("Preview image decode timeout"));
+        }, 5000);
 
         const finish = (error) => {
             if (finished) return;
             finished = true;
+            clearTimeout(timer);
 
             if (error && !firstError) {
                 firstError = error;
