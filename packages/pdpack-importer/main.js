@@ -10,6 +10,7 @@ let refreshQueued = false;
 let loggedWaitingForCustomAsset = false;
 let loggedWaitingForAssetDb = false;
 let loggedWaitingForRefresh = false;
+let loggedInspectorLoadFailure = false;
 
 const META_KEY = "pdpack";
 const META_ALIASES = [META_KEY, "cc.PdPackAsset"];
@@ -20,6 +21,17 @@ function getPdPackMeta() {
         PdPackMeta = require("./meta");
     }
     return PdPackMeta;
+}
+
+function loadInspectorTemplate() {
+    try {
+        require("./inspectors/pdpack/main");
+    } catch (e) {
+        if (!loggedInspectorLoadFailure) {
+            Editor.warn("[pdpack-importer] Failed to load pdpack inspector template:", e.stack || e.message || e);
+            loggedInspectorLoadFailure = true;
+        }
+    }
 }
 
 function registerMeta() {
@@ -34,9 +46,13 @@ function registerMeta() {
     }
 
     const Meta = getPdPackMeta();
-    META_ALIASES.forEach((key) => {
-        Editor.metas[key] = Meta;
-    });
+    // META_ALIASES.forEach((key) => {
+    //     // { "mount": { "asset-icon": "unpack://static/icon/assets/mount.png"}}
+    //     Editor.metas[key] = Meta;
+    // });
+    Editor.metas[META_KEY] = Meta; // Ensure the main key is set for AssetDB recognition
+
+    Editor.log(JSON.stringify(Editor.metas));
 
     if (!Editor.assetdb || typeof Editor.assetdb.register !== "function") {
         if (!loggedWaitingForAssetDb) {
@@ -47,8 +63,11 @@ function registerMeta() {
     }
 
     Editor.assetdb.register(".pdpack", false, Meta);
+
     registered = true;
     Editor.log("[pdpack-importer] .pdpack AssetDB importer registered");
+    // 注册后立即刷新现有资产，以确保它们被正确识别和处理
+    refreshExistingPdpackAssets("registering .pdpack importer");
     return true;
 }
 
@@ -81,6 +100,8 @@ function refreshExistingPdpackAssets(reason) {
 
     refreshedExistingAssets = true;
     refreshQueued = true;
+
+    Editor.log(`[pdpack-importer] Queuing refresh of existing .pdpack assets after ${reason}...`);
 
     setTimeout(() => {
         refreshQueued = false;
@@ -161,6 +182,7 @@ function fspathToAssetUrl(fspath, assetsPath) {
 module.exports = {
     load() {
         Editor.log("[pdpack-importer] loaded");
+        loadInspectorTemplate();
         registerMeta();
     },
 
@@ -178,6 +200,11 @@ module.exports = {
             if (registerMeta()) {
                 refreshExistingPdpackAssets("asset-db:assets-ready");
             }
+        },
+
+        "pdpack:test"() {
+            Editor.log("test");
+            Editor.log(JSON.stringify(Object.getOwnPropertySymbols(Editor.assetdb)));
         },
     },
 };
