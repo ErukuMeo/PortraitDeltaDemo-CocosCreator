@@ -1,4 +1,4 @@
-import PortraitController from "./pdpack-runtime-cc/PortraitController";
+import PortraitDeltaRenderer from "./pdpack-runtime-cc/PortraitDeltaRenderer";
 
 const { ccclass, property } = cc._decorator;
 
@@ -23,7 +23,7 @@ export default class PortraitDemoUI extends cc.Component {
     @property(cc.Prefab)
     variantBtnPrefab: cc.Prefab = null;
 
-    private _controller: PortraitController = null;
+    private _renderer: PortraitDeltaRenderer = null;
     private _buttons: cc.Node[] = [];
 
     onLoad(): void {
@@ -31,35 +31,35 @@ export default class PortraitDemoUI extends cc.Component {
         cc.systemEvent.on(cc.SystemEvent.EventType.KEY_DOWN, this._onKeyDown, this);
 
         if (this.portraitNode) {
-            this._controller = this.portraitNode.getComponent(PortraitController);
+            this._renderer = this.portraitNode.getComponent(PortraitDeltaRenderer);
         }
     }
 
     async start(): Promise<void> {
-        if (!this._controller) {
-            this._setStatus("错误: 未找到 PortraitController 组件", true);
+        if (!this._renderer) {
+            this._setStatus("错误: 未找到 PortraitDeltaRenderer 组件", true);
             return;
         }
 
-        if (!this._controller.pdpackPath) {
+        if (!this._renderer.pdpackPath) {
             this._setStatus("错误: 未配置 pdpackPath", true);
             return;
         }
 
         this._setStatus("正在加载...");
 
-        this._controller.onLoaded.push(() => {
+        this._renderer.onLoaded.push(() => {
             this._onLoaded();
         });
-        this._controller.onVariantChanged.push((index, name) => {
+        this._renderer.onVariantChanged.push((index, name) => {
             this._onVariantChanged(index, name);
         });
-        this._controller.onError.push((err) => {
+        this._renderer.onError.push((err) => {
             this._setStatus(err.message, true);
         });
 
         try {
-            await this._controller.load();
+            await this._renderer.load();
         } catch (e) {
             // 错误已通过 onError 回调处理
         }
@@ -70,8 +70,8 @@ export default class PortraitDemoUI extends cc.Component {
     }
 
     private _onLoaded(): void {
-        const count = this._controller.variantCount;
-        const names = this._controller.getVariantNames();
+        const count = this._renderer.variantCount;
+        const names = this._renderer.getVariantNames();
         this._setStatus(`加载完成 — ${count} 个变体: ${names.join(", ")}`);
         this._createVariantButtons();
         this._updateUI();
@@ -82,8 +82,8 @@ export default class PortraitDemoUI extends cc.Component {
         this._setStatus(`切换至: ${name}`);
         this.scheduleOnce(() => {
             if (this.statusLabel) {
-                const count = this._controller.variantCount;
-                const names = this._controller.getVariantNames();
+                const count = this._renderer.variantCount;
+                const names = this._renderer.getVariantNames();
                 this.statusLabel.string = `加载完成 — ${count} 个变体: ${names.join(", ")}`;
             }
         }, 1.5);
@@ -98,7 +98,7 @@ export default class PortraitDemoUI extends cc.Component {
         }
         this._buttons = [];
 
-        const names = this._controller.getVariantNames();
+        const names = this._renderer.getVariantNames();
         for (let i = 0; i < names.length; i++) {
             const btnNode = cc.instantiate(this.variantBtnPrefab);
             btnNode.setParent(this.buttonContainer);
@@ -127,11 +127,11 @@ export default class PortraitDemoUI extends cc.Component {
     }
 
     private _onVariantBtnClick(index: number): void {
-        this._controller.switchToVariant(index);
+        this._renderer.switchToVariant(index);
     }
 
     private _onKeyDown(event: cc.SystemEvent.EventKeyboard): void {
-        if (!this._controller || !this._controller.isLoaded) return;
+        if (!this._renderer || !this._renderer.isLoaded) return;
 
         switch (event.keyCode) {
             case cc.macro.KEY.left:
@@ -144,22 +144,22 @@ export default class PortraitDemoUI extends cc.Component {
     }
 
     private _prevVariant(): void {
-        const total = this._controller.variantCount;
-        const cur = this._controller.currentVariantIndex;
+        const total = this._renderer.variantCount;
+        const cur = this._renderer.currentVariantIndex;
         const next = (cur - 1 + total) % total;
-        this._controller.switchToVariant(next);
+        this._renderer.switchToVariant(next);
     }
 
     private _nextVariant(): void {
-        const total = this._controller.variantCount;
-        const cur = this._controller.currentVariantIndex;
+        const total = this._renderer.variantCount;
+        const cur = this._renderer.currentVariantIndex;
         const next = (cur + 1) % total;
-        this._controller.switchToVariant(next);
+        this._renderer.switchToVariant(next);
     }
 
     private _updateUI(): void {
         if (this.variantLabel) {
-            const name = this._controller.getVariantNames()[this._controller.currentVariantIndex] || "";
+            const name = this._renderer.getVariantNames()[this._renderer.currentVariantIndex] || "";
             this.variantLabel.string = `变体: ${name}`;
         }
 
@@ -167,7 +167,7 @@ export default class PortraitDemoUI extends cc.Component {
         for (let i = 0; i < this._buttons.length; i++) {
             const sprite = this._buttons[i].getComponent(cc.Sprite);
             if (sprite) {
-                sprite.color = i === this._controller.currentVariantIndex ? cc.color(100, 180, 255) : cc.color(255, 255, 255);
+                sprite.color = i === this._renderer.currentVariantIndex ? cc.color(100, 180, 255) : cc.color(255, 255, 255);
             }
         }
     }

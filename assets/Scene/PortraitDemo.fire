@@ -426,15 +426,15 @@
     "_id": "0a6oMnSEVNSK2VbNgEL39I"
   },
   {
-    "__type__": "6736fS6ShNOy5m2BPCBp8TS",
+    "__type__": "7d49bCIoilLbphwTPrZgaB0",
     "_name": "",
     "_objFlags": 0,
     "node": {
       "__id__": 8
     },
     "_enabled": true,
-    "pdpackPath": "ecd7233f-8154-4094-be87-00e0b72d10bc",
-    "_id": "4bbLy+ANtMtJ9H3dnZv03/"
+    "pdpackPath": "test_portrait.pdpack",
+    "_id": "c9Bj+/rrdL/IFbAOlJO1pF"
   },
   {
     "__type__": "cc.Node",
