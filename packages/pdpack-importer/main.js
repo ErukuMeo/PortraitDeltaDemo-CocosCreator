@@ -22,14 +22,6 @@ function getPdPackMeta() {
     return PdPackMeta;
 }
 
-function loadInspector() {
-    try {
-        require("./inspector/inspector");
-    } catch (e) {
-        Editor.warn("[pdpack-importer] Failed to load pdpack inspector:", e.stack || e.message || e);
-    }
-}
-
 function registerMeta() {
     if (registered) return true;
 
@@ -169,7 +161,6 @@ function fspathToAssetUrl(fspath, assetsPath) {
 module.exports = {
     load() {
         Editor.log("[pdpack-importer] loaded");
-        loadInspector();
         registerMeta();
     },
 
