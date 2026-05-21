@@ -108,7 +108,7 @@ export class PdpackLoader {
   /** 通过 resources 路径加载 */
   private static _loadByPath(path: string): Promise<PdpackData> {
     return new Promise((resolve, reject) => {
-      cc.resources.load(path, cc.BufferAsset, (err: Error | null, asset: cc.BufferAsset) => {
+      cc.resources.load(path, (err: Error | null, asset: cc.Asset) => {
         if (err) {
           reject(new Error(
             `PdpackLoader.load: '${path}' — ${err.message || err}。` +
@@ -239,13 +239,25 @@ export class PdpackLoader {
         typeof meta.base === 'object' ? JSON.stringify(meta.base) : meta.base);
     }
 
-    if (meta.width !== undefined) data.imageWidth = meta.width;
-    if (meta.height !== undefined) data.imageHeight = meta.height;
+    const base = meta.base && typeof meta.base === 'object' ? meta.base : null;
+
+    if (meta.width !== undefined) {
+      data.imageWidth = meta.width;
+    } else if (base && base.width !== undefined) {
+      data.imageWidth = base.width;
+    }
+
+    if (meta.height !== undefined) {
+      data.imageHeight = meta.height;
+    } else if (base && base.height !== undefined) {
+      data.imageHeight = base.height;
+    }
+
     if (meta.base !== undefined) {
       if (typeof meta.base === 'string') {
         data.baseVariantName = meta.base;
-      } else if (meta.base && typeof meta.base === 'object' && typeof meta.base.name === 'string') {
-        data.baseVariantName = meta.base.name;
+      } else if (base && typeof base.name === 'string') {
+        data.baseVariantName = base.name;
       } else {
         data.baseVariantName = String(meta.base);
       }
@@ -261,11 +273,21 @@ export class PdpackLoader {
 
         if (Array.isArray(vd)) {
           for (const r of vd) {
-            flatRegions.push({ x: r.x || 0, y: r.y || 0, width: r.width || 0, height: r.height || 0 });
+            flatRegions.push({
+              x: r.x || 0,
+              y: r.y || 0,
+              width: r.width !== undefined ? r.width : (r.w || 0),
+              height: r.height !== undefined ? r.height : (r.h || 0),
+            });
           }
         } else if (vd && Array.isArray(vd.regions)) {
           for (const r of vd.regions) {
-            flatRegions.push({ x: r.x || 0, y: r.y || 0, width: r.width || 0, height: r.height || 0 });
+            flatRegions.push({
+              x: r.x || 0,
+              y: r.y || 0,
+              width: r.width !== undefined ? r.width : (r.w || 0),
+              height: r.height !== undefined ? r.height : (r.h || 0),
+            });
           }
         }
       }

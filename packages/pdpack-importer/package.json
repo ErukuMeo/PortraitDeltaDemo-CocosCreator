@@ -1,0 +1,20 @@
+{
+  "name": "pdpack-importer",
+  "version": "1.0.0",
+  "description": "Custom importer and Inspector preview for .pdpack files",
+  "author": "",
+  "main": "main.js",
+  "runtime-resource": {
+    "path": "engine",
+    "name": "pdpack"
+  },
+  "inspector": {
+    "pdpack": "inspector/inspector.js",
+    "cc.PdPackAsset": "inspector/inspector.js"
+  },
+  "reload": {
+    "ignore": [
+      "engine/**/*"
+    ]
+  }
+}
