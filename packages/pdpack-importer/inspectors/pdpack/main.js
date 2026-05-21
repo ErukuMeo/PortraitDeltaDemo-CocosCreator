@@ -2,6 +2,8 @@
 
 const IMPORTER_TYPE = "pdpack";
 const COMPONENT_NAME = "pdpack";
+const PREVIEW_MIN_SCALE = 1;
+const PREVIEW_MAX_SCALE = 4;
 const Fs = tryRequire("fire-fs") || tryRequire("fs");
 const Path = tryRequire("fire-path") || tryRequire("path");
 const EditorRef = typeof Editor !== "undefined" ? Editor : null;
@@ -76,7 +78,11 @@ const panel = {
                 <span class="pdpack-label" title="当前预览画面的实际像素尺寸。">预览尺寸</span>
                 <span class="pdpack-value pdpack-mono" id="previewSize">-</span>
             </div>
-            <div class="pdpack-preview-wrap" title="棋盘格背景用于观察 PNG 透明通道。">
+            <div class="pdpack-row">
+                <span class="pdpack-label" title="当前 Canvas 预览缩放比例，滚轮可缩放，范围限制在 100% 到 300% 之间。">缩放</span>
+                <span class="pdpack-value pdpack-mono" id="previewZoom">-</span>
+            </div>
+            <div id="previewWrap" class="pdpack-preview-wrap" title="滚轮缩放，拖拽移动；棋盘格背景用于观察 PNG 透明通道。">
                 <canvas id="previewCanvas" class="pdpack-preview-canvas"></canvas>
                 <div id="previewEmpty" class="pdpack-preview-empty">暂无预览</div>
             </div>
@@ -123,7 +129,7 @@ const panel = {
         z-index: 20;
         box-sizing: border-box;
         margin: 0;
-        max-height: 54vh;
+        max-height: calc(100vh - 16px);
         overflow: hidden;
         box-shadow: 0 -6px 10px rgba(0, 0, 0, 0.18);
     }
@@ -195,9 +201,10 @@ const panel = {
     .pdpack-preview-wrap {
         position: relative;
         margin-top: 8px;
-        min-height: 140px;
-        max-height: calc(54vh - 82px);
-        overflow: auto;
+        height: calc(54vh - 106px);
+        min-height: 256px;
+        max-height: 420px;
+        overflow: hidden;
         border: 1px solid var(--color-normal-border);
         background-color: #808080;
         background-image:
@@ -212,7 +219,12 @@ const panel = {
     .pdpack-preview-canvas {
         display: block;
         width: 100%;
-        height: auto;
+        height: 100%;
+        cursor: grab;
+    }
+
+    .pdpack-preview-canvas.is-dragging {
+        cursor: grabbing;
     }
 
     .pdpack-preview-empty {
@@ -239,6 +251,8 @@ const panel = {
         variantNames: "#variantNames",
         variantSelect: "#variantSelect",
         previewSize: "#previewSize",
+        previewZoom: "#previewZoom",
+        previewWrap: "#previewWrap",
         previewCanvas: "#previewCanvas",
         previewEmpty: "#previewEmpty",
     },
@@ -269,6 +283,7 @@ const panel = {
 
     ready() {
         bindVariantSelect(this);
+        bindPreviewCanvasInteractions(this);
         bindSelectionRefresh(this);
         scheduleRefresh(this);
     },
@@ -278,10 +293,12 @@ const panel = {
     },
 
     beforeDestroy() {
+        unbindPreviewCanvasInteractions(this);
         unbindSelectionRefresh(this);
     },
 
     detached() {
+        unbindPreviewCanvasInteractions(this);
         unbindSelectionRefresh(this);
     },
 
@@ -429,6 +446,7 @@ function clearInfoFields(context) {
     setFieldText(context, "variantCount", "-");
     setFieldText(context, "variantNames", "-");
     setFieldText(context, "previewSize", "-");
+    setFieldText(context, "previewZoom", "-");
     clearPreviewCanvas(context);
     populateVariantSelect(context, null);
 }
@@ -472,6 +490,99 @@ function bindVariantSelect(context) {
         context._pdpackCurrentVariant = context.$el.$variantSelect.value || "__base__";
         renderPreview(context, context._pdpackCurrentVariant);
     });
+}
+
+function bindPreviewCanvasInteractions(context) {
+    const canvas = context && context.$el && context.$el.$previewCanvas;
+    const holder = getPreviewStateHolder(context);
+    if (!canvas || !holder || holder.__pdpackPreviewEvents) return;
+
+    const onWheel = (event) => {
+        const state = getPreviewState(context);
+        if (!state || !state.sourceCanvas || !state.view) return;
+
+        if (event && typeof event.preventDefault === "function") event.preventDefault();
+
+        const point = getCanvasPoint(canvas, event);
+        const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+        zoomPreviewAt(context, point.x, point.y, factor);
+    };
+
+    const onMouseDown = (event) => {
+        const state = getPreviewState(context);
+        if (!state || !state.sourceCanvas || !state.view || event.button !== 0) return;
+
+        if (event && typeof event.preventDefault === "function") event.preventDefault();
+
+        state.dragging = true;
+        state.dragX = event.clientX;
+        state.dragY = event.clientY;
+        if (canvas.classList) canvas.classList.add("is-dragging");
+    };
+
+    const onMouseMove = (event) => {
+        const state = getPreviewState(context);
+        if (!state || !state.dragging || !state.view) return;
+
+        const viewport = getPreviewViewportSize(context);
+        state.view.x += event.clientX - state.dragX;
+        state.view.y += event.clientY - state.dragY;
+        state.dragX = event.clientX;
+        state.dragY = event.clientY;
+        state.view = clampPreviewView(state.view, state.imageWidth, state.imageHeight, viewport);
+        drawPreviewViewport(context);
+    };
+
+    const onMouseUp = () => {
+        const state = getPreviewState(context);
+        if (state) state.dragging = false;
+        if (canvas.classList) canvas.classList.remove("is-dragging");
+    };
+
+    const onResize = () => {
+        drawPreviewViewport(context);
+    };
+
+    canvas.addEventListener("wheel", onWheel, false);
+    canvas.addEventListener("mousedown", onMouseDown, false);
+
+    if (typeof document !== "undefined") {
+        document.addEventListener("mousemove", onMouseMove, false);
+        document.addEventListener("mouseup", onMouseUp, false);
+    }
+
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+        window.addEventListener("resize", onResize, false);
+    }
+
+    holder.__pdpackPreviewEvents = {
+        canvas,
+        onWheel,
+        onMouseDown,
+        onMouseMove,
+        onMouseUp,
+        onResize,
+    };
+}
+
+function unbindPreviewCanvasInteractions(context) {
+    const holder = getPreviewStateHolder(context);
+    const events = holder && holder.__pdpackPreviewEvents;
+    if (!events) return;
+
+    events.canvas.removeEventListener("wheel", events.onWheel, false);
+    events.canvas.removeEventListener("mousedown", events.onMouseDown, false);
+
+    if (typeof document !== "undefined") {
+        document.removeEventListener("mousemove", events.onMouseMove, false);
+        document.removeEventListener("mouseup", events.onMouseUp, false);
+    }
+
+    if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+        window.removeEventListener("resize", events.onResize, false);
+    }
+
+    holder.__pdpackPreviewEvents = null;
 }
 
 function populateVariantSelect(context, info) {
@@ -546,10 +657,11 @@ function renderCompositedPreview(context, info, variant) {
             const width = info.imageWidth || baseImage.naturalWidth || baseImage.width;
             const height = info.imageHeight || baseImage.naturalHeight || baseImage.height;
 
-            canvas.width = width;
-            canvas.height = height;
+            const sourceCanvas = document.createElement("canvas");
+            sourceCanvas.width = width;
+            sourceCanvas.height = height;
 
-            const ctx = canvas.getContext("2d");
+            const ctx = sourceCanvas.getContext("2d");
             if (!ctx) throw new Error("Canvas 2D context is unavailable");
 
             ctx.clearRect(0, 0, width, height);
@@ -564,8 +676,8 @@ function renderCompositedPreview(context, info, variant) {
                 }
             });
 
+            setPreviewSourceCanvas(context, sourceCanvas, width, height);
             if (empty) empty.style.display = "none";
-            setFieldText(context, "previewSize", `${width} x ${height} px`);
         } catch (e) {
             clearPreviewCanvas(context);
             setFieldText(context, "previewSize", "预览绘制失败");
@@ -580,12 +692,22 @@ function clearPreviewCanvas(context) {
 
     const canvas = context && context.$el && context.$el.$previewCanvas;
     const empty = context && context.$el && context.$el.$previewEmpty;
+    const state = getPreviewState(context);
+
+    if (state) {
+        state.sourceCanvas = null;
+        state.imageWidth = 0;
+        state.imageHeight = 0;
+        state.view = null;
+        state.dragging = false;
+    }
 
     if (canvas) {
         const ctx = canvas.getContext("2d");
         canvas.width = 1;
         canvas.height = 1;
         if (ctx) ctx.clearRect(0, 0, 1, 1);
+        if (canvas.classList) canvas.classList.remove("is-dragging");
     }
 
     if (empty) empty.style.display = "flex";
@@ -688,6 +810,192 @@ function copyImagePixels(targetCtx, source, image) {
     ctx.drawImage(image, 0, 0, width, height);
 
     targetCtx.putImageData(ctx.getImageData(0, 0, width, height), source.x, source.y);
+}
+
+function setPreviewSourceCanvas(context, sourceCanvas, imageWidth, imageHeight) {
+    const state = getPreviewState(context);
+    if (!state || !sourceCanvas || !imageWidth || !imageHeight) return;
+
+    const previousView = state.view && state.imageWidth === imageWidth && state.imageHeight === imageHeight ? state.view : null;
+    const viewport = getPreviewViewportSize(context);
+
+    state.sourceCanvas = sourceCanvas;
+    state.imageWidth = imageWidth;
+    state.imageHeight = imageHeight;
+    state.view = previousView ? clampPreviewView(previousView, imageWidth, imageHeight, viewport) : createInitialPreviewView(imageWidth, imageHeight, viewport);
+    state.dragging = false;
+
+    drawPreviewViewport(context);
+}
+
+function drawPreviewViewport(context) {
+    const state = getPreviewState(context);
+    const canvas = context && context.$el && context.$el.$previewCanvas;
+    const empty = context && context.$el && context.$el.$previewEmpty;
+    if (!state || !state.sourceCanvas || !canvas) return;
+
+    const viewport = getPreviewViewportSize(context);
+    const dpr = getDevicePixelRatio();
+    const pixelWidth = Math.max(1, Math.floor(viewport.width * dpr));
+    const pixelHeight = Math.max(1, Math.floor(viewport.height * dpr));
+
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    state.view = clampPreviewView(state.view || createInitialPreviewView(state.imageWidth, state.imageHeight, viewport), state.imageWidth, state.imageHeight, viewport);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, viewport.width, viewport.height);
+    ctx.imageSmoothingEnabled = true;
+    const drawScale = getPreviewDrawScale(state, viewport);
+    ctx.drawImage(state.sourceCanvas, state.view.x, state.view.y, state.imageWidth * drawScale, state.imageHeight * drawScale);
+
+    if (empty) empty.style.display = "none";
+    setFieldText(context, "previewSize", `${state.imageWidth} x ${state.imageHeight} px`);
+    setFieldText(context, "previewZoom", formatPreviewZoom(state));
+}
+
+function zoomPreviewAt(context, viewportX, viewportY, factor) {
+    const state = getPreviewState(context);
+    if (!state || !state.view || !state.sourceCanvas) return;
+
+    const range = getPreviewScaleRange(state.imageWidth, state.imageHeight);
+    const viewport = getPreviewViewportSize(context);
+    const oldScale = state.view.scale;
+    const scale = clamp(oldScale * factor, range.min, range.max);
+    if (scale === oldScale) return;
+
+    const oldDrawScale = getPreviewDrawScale(state, viewport);
+    const imageX = (viewportX - state.view.x) / oldDrawScale;
+    const imageY = (viewportY - state.view.y) / oldDrawScale;
+    const nextDrawScale = getPreviewDrawScale({ imageWidth: state.imageWidth, imageHeight: state.imageHeight, view: { scale } }, viewport);
+
+    state.view = clampPreviewView(
+        {
+            scale,
+            x: viewportX - imageX * nextDrawScale,
+            y: viewportY - imageY * nextDrawScale,
+        },
+        state.imageWidth,
+        state.imageHeight,
+        viewport,
+    );
+    drawPreviewViewport(context);
+}
+
+function createInitialPreviewView(imageWidth, imageHeight, viewport) {
+    return clampPreviewView(
+        {
+            scale: 1,
+            x: 0,
+            y: 0,
+        },
+        imageWidth,
+        imageHeight,
+        viewport,
+    );
+}
+
+function clampPreviewView(view, imageWidth, imageHeight, viewport) {
+    const range = getPreviewScaleRange(imageWidth, imageHeight);
+    const scale = clamp(view && view.scale ? view.scale : range.max, range.min, range.max);
+    const drawScale = getPreviewDrawScale({ imageWidth, imageHeight, view: { scale } }, viewport);
+    const displayWidth = imageWidth * drawScale;
+    const displayHeight = imageHeight * drawScale;
+
+    let x = view && isFinite(view.x) ? view.x : 0;
+    let y = view && isFinite(view.y) ? view.y : 0;
+
+    if (displayWidth <= viewport.width) {
+        x = (viewport.width - displayWidth) / 2;
+    } else {
+        x = clamp(x, viewport.width - displayWidth, 0);
+    }
+
+    if (displayHeight <= viewport.height) {
+        y = (viewport.height - displayHeight) / 2;
+    } else {
+        y = clamp(y, viewport.height - displayHeight, 0);
+    }
+
+    return { scale, x, y };
+}
+
+function getPreviewScaleRange(imageWidth, imageHeight) {
+    if (!imageWidth || !imageHeight) {
+        return { min: PREVIEW_MIN_SCALE, max: PREVIEW_MIN_SCALE };
+    }
+
+    return {
+        min: PREVIEW_MIN_SCALE,
+        max: PREVIEW_MAX_SCALE,
+    };
+}
+
+function getPreviewDrawScale(state, viewport) {
+    return getPreviewFitScale(state.imageWidth, state.imageHeight, viewport) * state.view.scale;
+}
+
+function getPreviewFitScale(imageWidth, imageHeight, viewport) {
+    if (!imageWidth || !imageHeight || !viewport || !viewport.width || !viewport.height) return 1;
+
+    return Math.min(1, viewport.width / imageWidth, viewport.height / imageHeight);
+}
+
+function getPreviewViewportSize(context) {
+    const canvas = context && context.$el && context.$el.$previewCanvas;
+    const wrap = (context && context.$el && context.$el.$previewWrap) || (canvas && canvas.parentElement);
+    const rect = wrap && typeof wrap.getBoundingClientRect === "function" ? wrap.getBoundingClientRect() : null;
+    const width = Math.floor((rect && rect.width) || (wrap && wrap.clientWidth) || (canvas && canvas.clientWidth) || 256);
+    const height = Math.floor((rect && rect.height) || (wrap && wrap.clientHeight) || (canvas && canvas.clientHeight) || 256);
+
+    return {
+        width: Math.max(1, width),
+        height: Math.max(1, height),
+    };
+}
+
+function getCanvasPoint(canvas, event) {
+    const rect = canvas && typeof canvas.getBoundingClientRect === "function" ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
+
+    return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+    };
+}
+
+function getPreviewState(context) {
+    const holder = getPreviewStateHolder(context);
+    if (!holder) return null;
+
+    if (!holder.__pdpackPreviewState) {
+        holder.__pdpackPreviewState = {
+            sourceCanvas: null,
+            imageWidth: 0,
+            imageHeight: 0,
+            view: null,
+            dragging: false,
+            dragX: 0,
+            dragY: 0,
+        };
+    }
+
+    return holder.__pdpackPreviewState;
+}
+
+function formatPreviewZoom(state) {
+    return `${Math.round(state.view.scale * 100)}%`;
+}
+
+function getDevicePixelRatio() {
+    return typeof window !== "undefined" && window.devicePixelRatio ? window.devicePixelRatio : 1;
+}
+
+function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
 }
 
 function bumpPreviewRenderToken(context) {
