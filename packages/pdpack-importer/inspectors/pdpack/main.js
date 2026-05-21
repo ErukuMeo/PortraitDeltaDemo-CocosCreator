@@ -269,11 +269,20 @@ const panel = {
 
     ready() {
         bindVariantSelect(this);
-        this.refreshUuid();
+        bindSelectionRefresh(this);
+        scheduleRefresh(this);
     },
 
     init() {
         // Vue 1.x/Cocos Creator 2.4 initializes DOM refs later; ready() refreshes the view.
+    },
+
+    beforeDestroy() {
+        unbindSelectionRefresh(this);
+    },
+
+    detached() {
+        unbindSelectionRefresh(this);
     },
 
     update(assetList, metaList) {
@@ -285,13 +294,13 @@ const panel = {
             this._pdpackMetaList = metaList;
         }
 
-        this.refreshUuid();
+        scheduleRefresh(this, findUuidInValue(assetList) || findUuidInValue(metaList));
     },
 
     methods: {
-        refreshUuid() {
+        refreshUuid(preferredUuid) {
             this.pdpackImporter = IMPORTER_TYPE;
-            this.pdpackUuid = findUuid(this) || "-";
+            this.pdpackUuid = preferredUuid || findUuid(this) || "-";
             setUuidText(this, this.pdpackUuid);
             refreshPdpackInfo(this, this.pdpackUuid);
         },
@@ -305,11 +314,89 @@ if (VueRef && typeof VueRef.component === "function") {
 module.exports = panel;
 
 function findUuid(context) {
-    return findUuidInValue(context && context._pdpackAssetList) || findUuidInValue(context && context._pdpackMetaList) || findUuidInValue(context && context.target) || findUuidInSelection() || "";
+    return findUuidInValue(context && context.target) || findUuidInSelection() || findUuidInValue(context && context._pdpackAssetList) || findUuidInValue(context && context._pdpackMetaList) || "";
 }
 
 function setUuidText(context, uuid) {
     setFieldText(context, "uuid", uuid);
+}
+
+function scheduleRefresh(context, preferredUuid) {
+    const holder = getPanelStateHolder(context);
+    if (!holder) {
+        if (context && typeof context.refreshUuid === "function") {
+            context.refreshUuid(preferredUuid);
+        }
+        return;
+    }
+
+    holder.__pdpackRefreshToken = (holder.__pdpackRefreshToken || 0) + 1;
+    markPreferredRefresh(context, preferredUuid);
+    const token = holder.__pdpackRefreshToken;
+
+    setTimeout(() => {
+        if (token !== holder.__pdpackRefreshToken) return;
+        context.refreshUuid(preferredUuid);
+    }, 0);
+
+    setTimeout(() => {
+        if (token !== holder.__pdpackRefreshToken) return;
+        const liveUuid = findLiveUuid(context);
+        if (shouldIgnoreLiveUuid(context, liveUuid)) return;
+
+        if (liveUuid && liveUuid !== context.pdpackUuid) {
+            context.refreshUuid(liveUuid);
+        } else if (!context.pdpackUuid || context.pdpackUuid === "-") {
+            context.refreshUuid(preferredUuid);
+        }
+    }, 80);
+}
+
+function bindSelectionRefresh(context) {
+    const holder = getPanelStateHolder(context);
+    if (!holder || holder.__pdpackSelectionTimer) return;
+
+    holder.__pdpackSelectionTimer = setInterval(() => {
+        if (!isElementAttached(context && context.$el)) {
+            unbindSelectionRefresh(context);
+            return;
+        }
+
+        const uuid = findLiveUuid(context);
+        if (!uuid || uuid === context.pdpackUuid) return;
+        if (shouldIgnoreLiveUuid(context, uuid)) return;
+
+        context.refreshUuid(uuid);
+    }, 250);
+}
+
+function unbindSelectionRefresh(context) {
+    const holder = getPanelStateHolder(context);
+    if (!holder || !holder.__pdpackSelectionTimer) return;
+
+    clearInterval(holder.__pdpackSelectionTimer);
+    holder.__pdpackSelectionTimer = null;
+}
+
+function findLiveUuid(context) {
+    return findUuidInValue(context && context.target) || findUuidInSelection() || "";
+}
+
+function markPreferredRefresh(context, uuid) {
+    if (!isUuid(uuid)) return;
+
+    const holder = getPanelStateHolder(context);
+    if (!holder) return;
+
+    holder.__pdpackPreferredUuid = uuid;
+    holder.__pdpackPreferredUntil = Date.now() + 600;
+}
+
+function shouldIgnoreLiveUuid(context, liveUuid) {
+    const holder = getPanelStateHolder(context);
+    if (!holder || !isUuid(liveUuid)) return false;
+
+    return context.pdpackUuid === holder.__pdpackPreferredUuid && liveUuid !== holder.__pdpackPreferredUuid && Date.now() < holder.__pdpackPreferredUntil;
 }
 
 function refreshPdpackInfo(context, uuid) {
@@ -618,6 +705,18 @@ function getPreviewRenderToken(context) {
 
 function getPreviewStateHolder(context) {
     return context && context.$el ? context.$el : context || null;
+}
+
+function getPanelStateHolder(context) {
+    return context && context.$el ? context.$el : context || null;
+}
+
+function isElementAttached(element) {
+    if (!element) return false;
+    if (element.isConnected !== undefined) return !!element.isConnected;
+    if (typeof document === "undefined" || !document.body || typeof document.body.contains !== "function") return true;
+
+    return document.body.contains(element);
 }
 
 function resolvePdpackPath(uuid, callback) {
