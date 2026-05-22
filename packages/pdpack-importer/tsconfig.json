@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "commonjs",
+    "lib": ["es2015", "es2017", "dom"],
+    "declaration": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "strict": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "runtime-resource/runtime/core/**/*.ts",
+    "src/**/*.ts"
+  ]
+}

@@ -365,7 +365,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "PortraitNode",
+    "_name": "PortraitSprite",
     "_objFlags": 0,
     "_parent": {
       "__id__": 2
@@ -426,14 +426,33 @@
     "_id": "0a6oMnSEVNSK2VbNgEL39I"
   },
   {
-    "__type__": "7d49bCIoilLbphwTPrZgaB0",
+    "__type__": "cc.Sprite",
     "_name": "",
     "_objFlags": 0,
     "node": {
       "__id__": 8
     },
     "_enabled": true,
-    "pdpackPath": "test_portrait.pdpack",
+    "_materials": [
+      {
+        "__uuid__": "eca5d2f2-8ef6-41c2-bbe6-f9c79d09c432"
+      }
+    ],
+    "_srcBlendFactor": 770,
+    "_dstBlendFactor": 771,
+    "_spriteFrame": null,
+    "_type": 0,
+    "_sizeMode": 0,
+    "_fillType": 0,
+    "_fillCenter": {
+      "__type__": "cc.Vec2",
+      "x": 0,
+      "y": 0
+    },
+    "_fillStart": 0,
+    "_fillRange": 0,
+    "_isTrimmedMode": true,
+    "_atlas": null,
     "_id": "c9Bj+/rrdL/IFbAOlJO1pF"
   },
   {
@@ -966,8 +985,9 @@
       "__id__": 2
     },
     "_enabled": true,
-    "portraitNode": {
-      "__id__": 8
+    "pdpackPath": "portraits/test/test_portrait",
+    "portraitSprite": {
+      "__id__": 9
     },
     "variantLabel": {
       "__id__": 15
