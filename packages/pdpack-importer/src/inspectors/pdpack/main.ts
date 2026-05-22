@@ -1,14 +1,16 @@
 "use strict";
 
+export {};
+
 const IMPORTER_TYPE = "pdpack";
 const COMPONENT_NAME = "pdpack";
 const PREVIEW_MIN_SCALE = 1;
 const PREVIEW_MAX_SCALE = 4;
 const Fs = tryRequire("fire-fs") || tryRequire("fs");
 const Path = tryRequire("fire-path") || tryRequire("path");
-const PdpackCore = require("../../dist/runtime-resource/pdpack-runtime/core/PdpackCore");
+const PdpackCore = require("../../../runtime-resource/pdpack-runtime/core/PdpackCore");
 const EditorRef = typeof Editor !== "undefined" ? Editor : null;
-const VueRef = typeof globalThis !== "undefined" ? globalThis.Vue : typeof Vue !== "undefined" ? Vue : null;
+const VueRef = typeof globalThis !== "undefined" ? (globalThis as any).Vue : typeof Vue !== "undefined" ? Vue : null;
 
 const panel = {
     template: `
@@ -339,7 +341,7 @@ function setUuidText(context, uuid) {
     setFieldText(context, "uuid", uuid);
 }
 
-function scheduleRefresh(context, preferredUuid) {
+function scheduleRefresh(context, preferredUuid?) {
     const holder = getPanelStateHolder(context);
     if (!holder) {
         if (context && typeof context.refreshUuid === "function") {

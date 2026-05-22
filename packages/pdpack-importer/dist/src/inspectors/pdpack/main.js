@@ -1,15 +1,14 @@
 "use strict";
-
+Object.defineProperty(exports, "__esModule", { value: true });
 const IMPORTER_TYPE = "pdpack";
 const COMPONENT_NAME = "pdpack";
 const PREVIEW_MIN_SCALE = 1;
 const PREVIEW_MAX_SCALE = 4;
 const Fs = tryRequire("fire-fs") || tryRequire("fs");
 const Path = tryRequire("fire-path") || tryRequire("path");
-const PdpackCore = require("../../dist/runtime-resource/pdpack-runtime/core/PdpackCore");
+const PdpackCore = require("../../../runtime-resource/pdpack-runtime/core/PdpackCore");
 const EditorRef = typeof Editor !== "undefined" ? Editor : null;
 const VueRef = typeof globalThis !== "undefined" ? globalThis.Vue : typeof Vue !== "undefined" ? Vue : null;
-
 const panel = {
     template: `
     <div class="pdpack-inspector">
@@ -239,7 +238,6 @@ const panel = {
         pointer-events: none;
     }
 `,
-
     $: {
         uuid: "#uuid",
         file: "#file",
@@ -257,7 +255,6 @@ const panel = {
         previewCanvas: "#previewCanvas",
         previewEmpty: "#previewEmpty",
     },
-
     props: {
         target: {
             twoWay: true,
@@ -267,7 +264,6 @@ const panel = {
             },
         },
     },
-
     data() {
         return {
             pdpackImporter: IMPORTER_TYPE,
@@ -281,40 +277,32 @@ const panel = {
             _pdpackVariantSelectBound: false,
         };
     },
-
     ready() {
         bindVariantSelect(this);
         bindPreviewCanvasInteractions(this);
         bindSelectionRefresh(this);
         scheduleRefresh(this);
     },
-
     init() {
         // Vue 1.x/Cocos Creator 2.4 initializes DOM refs later; ready() refreshes the view.
     },
-
     beforeDestroy() {
         unbindPreviewCanvasInteractions(this);
         unbindSelectionRefresh(this);
     },
-
     detached() {
         unbindPreviewCanvasInteractions(this);
         unbindSelectionRefresh(this);
     },
-
     update(assetList, metaList) {
         if (assetList !== undefined) {
             this._pdpackAssetList = assetList;
         }
-
         if (metaList !== undefined) {
             this._pdpackMetaList = metaList;
         }
-
         scheduleRefresh(this, findUuidInValue(assetList) || findUuidInValue(metaList));
     },
-
     methods: {
         refreshUuid(preferredUuid) {
             this.pdpackImporter = IMPORTER_TYPE;
@@ -324,21 +312,16 @@ const panel = {
         },
     },
 };
-
 if (VueRef && typeof VueRef.component === "function") {
     VueRef.component(COMPONENT_NAME, panel);
 }
-
 module.exports = panel;
-
 function findUuid(context) {
     return findUuidInValue(context && context.target) || findUuidInSelection() || findUuidInValue(context && context._pdpackAssetList) || findUuidInValue(context && context._pdpackMetaList) || "";
 }
-
 function setUuidText(context, uuid) {
     setFieldText(context, "uuid", uuid);
 }
-
 function scheduleRefresh(context, preferredUuid) {
     const holder = getPanelStateHolder(context);
     if (!holder) {
@@ -347,96 +330,86 @@ function scheduleRefresh(context, preferredUuid) {
         }
         return;
     }
-
     holder.__pdpackRefreshToken = (holder.__pdpackRefreshToken || 0) + 1;
     markPreferredRefresh(context, preferredUuid);
     const token = holder.__pdpackRefreshToken;
-
     setTimeout(() => {
-        if (token !== holder.__pdpackRefreshToken) return;
+        if (token !== holder.__pdpackRefreshToken)
+            return;
         context.refreshUuid(preferredUuid);
     }, 0);
-
     setTimeout(() => {
-        if (token !== holder.__pdpackRefreshToken) return;
+        if (token !== holder.__pdpackRefreshToken)
+            return;
         const liveUuid = findLiveUuid(context);
-        if (shouldIgnoreLiveUuid(context, liveUuid)) return;
-
+        if (shouldIgnoreLiveUuid(context, liveUuid))
+            return;
         if (liveUuid && liveUuid !== context.pdpackUuid) {
             context.refreshUuid(liveUuid);
-        } else if (!context.pdpackUuid || context.pdpackUuid === "-") {
+        }
+        else if (!context.pdpackUuid || context.pdpackUuid === "-") {
             context.refreshUuid(preferredUuid);
         }
     }, 80);
 }
-
 function bindSelectionRefresh(context) {
     const holder = getPanelStateHolder(context);
-    if (!holder || holder.__pdpackSelectionTimer) return;
-
+    if (!holder || holder.__pdpackSelectionTimer)
+        return;
     holder.__pdpackSelectionTimer = setInterval(() => {
         if (!isElementAttached(context && context.$el)) {
             unbindSelectionRefresh(context);
             return;
         }
-
         const uuid = findLiveUuid(context);
-        if (!uuid || uuid === context.pdpackUuid) return;
-        if (shouldIgnoreLiveUuid(context, uuid)) return;
-
+        if (!uuid || uuid === context.pdpackUuid)
+            return;
+        if (shouldIgnoreLiveUuid(context, uuid))
+            return;
         context.refreshUuid(uuid);
     }, 250);
 }
-
 function unbindSelectionRefresh(context) {
     const holder = getPanelStateHolder(context);
-    if (!holder || !holder.__pdpackSelectionTimer) return;
-
+    if (!holder || !holder.__pdpackSelectionTimer)
+        return;
     clearInterval(holder.__pdpackSelectionTimer);
     holder.__pdpackSelectionTimer = null;
 }
-
 function findLiveUuid(context) {
     return findUuidInValue(context && context.target) || findUuidInSelection() || "";
 }
-
 function markPreferredRefresh(context, uuid) {
-    if (!isUuid(uuid)) return;
-
+    if (!isUuid(uuid))
+        return;
     const holder = getPanelStateHolder(context);
-    if (!holder) return;
-
+    if (!holder)
+        return;
     holder.__pdpackPreferredUuid = uuid;
     holder.__pdpackPreferredUntil = Date.now() + 600;
 }
-
 function shouldIgnoreLiveUuid(context, liveUuid) {
     const holder = getPanelStateHolder(context);
-    if (!holder || !isUuid(liveUuid)) return false;
-
+    if (!holder || !isUuid(liveUuid))
+        return false;
     return context.pdpackUuid === holder.__pdpackPreferredUuid && liveUuid !== holder.__pdpackPreferredUuid && Date.now() < holder.__pdpackPreferredUntil;
 }
-
 function refreshPdpackInfo(context, uuid) {
     context.pdpackInfo = null;
     clearInfoFields(context);
-
     if (!isUuid(uuid)) {
         return;
     }
-
     context._pdpackResolveToken = uuid;
     setFieldText(context, "file", "加载中...");
-
     resolvePdpackPath(uuid, (filePath) => {
-        if (context._pdpackResolveToken !== uuid) return;
-
+        if (context._pdpackResolveToken !== uuid)
+            return;
         const info = parsePdpackFile(filePath);
         context.pdpackInfo = info;
         renderPdpackInfo(context, filePath, info);
     });
 }
-
 function clearInfoFields(context) {
     setFieldText(context, "file", "-");
     setFieldText(context, "version", "-");
@@ -451,14 +424,12 @@ function clearInfoFields(context) {
     clearPreviewCanvas(context);
     populateVariantSelect(context, null);
 }
-
 function renderPdpackInfo(context, filePath, info) {
     if (!info) {
         clearInfoFields(context);
         setFieldText(context, "file", filePath || "无法读取 .pdpack");
         return;
     }
-
     setFieldText(context, "file", formatFileName(filePath));
     setFieldText(context, "version", `v${info.version}`);
     setFieldText(context, "canvas", info.imageWidth && info.imageHeight ? `${info.imageWidth} x ${info.imageHeight} px` : "-");
@@ -467,64 +438,59 @@ function renderPdpackInfo(context, filePath, info) {
     setFieldText(context, "base", info.baseVariantName || "-");
     setFieldText(context, "variantCount", `${info.variantCount}`);
     setFieldText(context, "variantNames", info.variantNames.length > 0 ? info.variantNames.join("\n") : "-");
-
     context._pdpackPreview = info;
     context._pdpackCurrentVariant = "__base__";
     populateVariantSelect(context, info);
     renderPreview(context, "__base__");
 }
-
 function setFieldText(context, field, text) {
     const element = context && context.$el && context.$el[`$${field}`];
-    if (!element) return;
-
+    if (!element)
+        return;
     const value = String(text);
     element.textContent = value;
     element.title = value;
 }
-
 function bindVariantSelect(context) {
-    if (!context || context._pdpackVariantSelectBound || !context.$el || !context.$el.$variantSelect) return;
-
+    if (!context || context._pdpackVariantSelectBound || !context.$el || !context.$el.$variantSelect)
+        return;
     context._pdpackVariantSelectBound = true;
     context.$el.$variantSelect.addEventListener("change", () => {
         context._pdpackCurrentVariant = context.$el.$variantSelect.value || "__base__";
         renderPreview(context, context._pdpackCurrentVariant);
     });
 }
-
 function bindPreviewCanvasInteractions(context) {
     const canvas = context && context.$el && context.$el.$previewCanvas;
     const holder = getPreviewStateHolder(context);
-    if (!canvas || !holder || holder.__pdpackPreviewEvents) return;
-
+    if (!canvas || !holder || holder.__pdpackPreviewEvents)
+        return;
     const onWheel = (event) => {
         const state = getPreviewState(context);
-        if (!state || !state.sourceCanvas || !state.view) return;
-
-        if (event && typeof event.preventDefault === "function") event.preventDefault();
-
+        if (!state || !state.sourceCanvas || !state.view)
+            return;
+        if (event && typeof event.preventDefault === "function")
+            event.preventDefault();
         const point = getCanvasPoint(canvas, event);
         const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
         zoomPreviewAt(context, point.x, point.y, factor);
     };
-
     const onMouseDown = (event) => {
         const state = getPreviewState(context);
-        if (!state || !state.sourceCanvas || !state.view || event.button !== 0) return;
-
-        if (event && typeof event.preventDefault === "function") event.preventDefault();
-
+        if (!state || !state.sourceCanvas || !state.view || event.button !== 0)
+            return;
+        if (event && typeof event.preventDefault === "function")
+            event.preventDefault();
         state.dragging = true;
         state.dragX = event.clientX;
         state.dragY = event.clientY;
-        if (canvas.classList) canvas.classList.add("is-dragging");
+        if (canvas.classList)
+            canvas.classList.add("is-dragging");
     };
-
     const onMouseMove = (event) => {
         const state = getPreviewState(context);
-        if (!state || !state.dragging || !state.view) return;
-
+        if (!state || !state.dragging || !state.view)
+            return;
         const viewport = getPreviewViewportSize(context);
         state.view.x += event.clientX - state.dragX;
         state.view.y += event.clientY - state.dragY;
@@ -533,29 +499,25 @@ function bindPreviewCanvasInteractions(context) {
         state.view = clampPreviewView(state.view, state.imageWidth, state.imageHeight, viewport);
         drawPreviewViewport(context);
     };
-
     const onMouseUp = () => {
         const state = getPreviewState(context);
-        if (state) state.dragging = false;
-        if (canvas.classList) canvas.classList.remove("is-dragging");
+        if (state)
+            state.dragging = false;
+        if (canvas.classList)
+            canvas.classList.remove("is-dragging");
     };
-
     const onResize = () => {
         drawPreviewViewport(context);
     };
-
     canvas.addEventListener("wheel", onWheel, false);
     canvas.addEventListener("mousedown", onMouseDown, false);
-
     if (typeof document !== "undefined") {
         document.addEventListener("mousemove", onMouseMove, false);
         document.addEventListener("mouseup", onMouseUp, false);
     }
-
     if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
         window.addEventListener("resize", onResize, false);
     }
-
     holder.__pdpackPreviewEvents = {
         canvas,
         onWheel,
@@ -565,46 +527,37 @@ function bindPreviewCanvasInteractions(context) {
         onResize,
     };
 }
-
 function unbindPreviewCanvasInteractions(context) {
     const holder = getPreviewStateHolder(context);
     const events = holder && holder.__pdpackPreviewEvents;
-    if (!events) return;
-
+    if (!events)
+        return;
     events.canvas.removeEventListener("wheel", events.onWheel, false);
     events.canvas.removeEventListener("mousedown", events.onMouseDown, false);
-
     if (typeof document !== "undefined") {
         document.removeEventListener("mousemove", events.onMouseMove, false);
         document.removeEventListener("mouseup", events.onMouseUp, false);
     }
-
     if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
         window.removeEventListener("resize", events.onResize, false);
     }
-
     holder.__pdpackPreviewEvents = null;
 }
-
 function populateVariantSelect(context, info) {
     const select = context && context.$el && context.$el.$variantSelect;
-    if (!select) return;
-
+    if (!select)
+        return;
     while (select.firstChild) {
         select.removeChild(select.firstChild);
     }
-
     appendOption(select, "__base__", "基础图", false);
-
     if (info && Array.isArray(info.variants)) {
         info.variants.forEach((variant) => {
             appendOption(select, variant.name, variant.name, false);
         });
     }
-
     select.value = "__base__";
 }
-
 function appendOption(select, value, text, disabled) {
     const option = document.createElement("option");
     option.value = value;
@@ -612,25 +565,20 @@ function appendOption(select, value, text, disabled) {
     option.disabled = !!disabled;
     select.appendChild(option);
 }
-
 function renderPreview(context, variantName) {
     if (!context || !context._pdpackPreview) {
         clearPreviewCanvas(context);
         return;
     }
-
     const info = context._pdpackPreview;
     const variant = variantName === "__base__" ? null : findVariant(info, variantName);
-
     if (variantName !== "__base__" && !variant) {
         clearPreviewCanvas(context);
         setFieldText(context, "previewSize", "未找到变体");
         return;
     }
-
     renderCompositedPreview(context, info, variant);
 }
-
 function renderCompositedPreview(context, info, variant) {
     const canvas = context && context.$el && context.$el.$previewCanvas;
     const empty = context && context.$el && context.$el.$previewEmpty;
@@ -638,63 +586,55 @@ function renderCompositedPreview(context, info, variant) {
         clearPreviewCanvas(context);
         return;
     }
-
     const token = bumpPreviewRenderToken(context);
     const sources = collectPreviewImageSources(info, variant);
-
     setFieldText(context, "previewSize", "渲染中...");
-
     loadImages(sources, (error, loaded) => {
-        if (token !== getPreviewRenderToken(context)) return;
-
+        if (token !== getPreviewRenderToken(context))
+            return;
         if (error || !loaded || !loaded[0]) {
             clearPreviewCanvas(context);
             setFieldText(context, "previewSize", "预览解码失败");
             return;
         }
-
         try {
             const baseImage = loaded[0].image;
             const width = info.imageWidth || baseImage.naturalWidth || baseImage.width;
             const height = info.imageHeight || baseImage.naturalHeight || baseImage.height;
-
             const sourceCanvas = document.createElement("canvas");
             sourceCanvas.width = width;
             sourceCanvas.height = height;
-
             const ctx = sourceCanvas.getContext("2d");
-            if (!ctx) throw new Error("Canvas 2D context is unavailable");
-
+            if (!ctx)
+                throw new Error("Canvas 2D context is unavailable");
             ctx.clearRect(0, 0, width, height);
-
             loaded.forEach((item, index) => {
                 const source = item.source;
                 const image = item.image;
                 if (index === 0) {
                     ctx.drawImage(image, source.x, source.y);
-                } else {
+                }
+                else {
                     copyImagePixels(ctx, source, image);
                 }
             });
-
             setPreviewSourceCanvas(context, sourceCanvas, width, height);
-            if (empty) empty.style.display = "none";
-        } catch (e) {
+            if (empty)
+                empty.style.display = "none";
+        }
+        catch (e) {
             clearPreviewCanvas(context);
             setFieldText(context, "previewSize", "预览绘制失败");
         }
     });
 }
-
 function clearPreviewCanvas(context) {
     if (context) {
         bumpPreviewRenderToken(context);
     }
-
     const canvas = context && context.$el && context.$el.$previewCanvas;
     const empty = context && context.$el && context.$el.$previewEmpty;
     const state = getPreviewState(context);
-
     if (state) {
         state.sourceCanvas = null;
         state.imageWidth = 0;
@@ -702,25 +642,24 @@ function clearPreviewCanvas(context) {
         state.view = null;
         state.dragging = false;
     }
-
     if (canvas) {
         const ctx = canvas.getContext("2d");
         canvas.width = 1;
         canvas.height = 1;
-        if (ctx) ctx.clearRect(0, 0, 1, 1);
-        if (canvas.classList) canvas.classList.remove("is-dragging");
+        if (ctx)
+            ctx.clearRect(0, 0, 1, 1);
+        if (canvas.classList)
+            canvas.classList.remove("is-dragging");
     }
-
-    if (empty) empty.style.display = "flex";
+    if (empty)
+        empty.style.display = "flex";
 }
-
 function collectPreviewImageSources(info, variant) {
     const sources = [{ url: info.baseImageUrl, x: 0, y: 0, width: 0, height: 0 }];
-
     if (variant && Array.isArray(variant.regions)) {
         variant.regions.forEach((region) => {
-            if (!region || !region.imageUrl) return;
-
+            if (!region || !region.imageUrl)
+                return;
             sources.push({
                 url: region.imageUrl,
                 x: region.x || 0,
@@ -730,248 +669,203 @@ function collectPreviewImageSources(info, variant) {
             });
         });
     }
-
     return sources;
 }
-
 function loadImages(sources, callback) {
     const loaded = new Array(sources.length);
     let pending = sources.length;
     let firstError = null;
-
     if (pending === 0) {
         callback(new Error("No preview images"), loaded);
         return;
     }
-
     sources.forEach((source, index) => {
         const image = new Image();
         let finished = false;
         const timer = setTimeout(() => {
             finish(new Error("Preview image decode timeout"));
         }, 5000);
-
         const finish = (error) => {
-            if (finished) return;
+            if (finished)
+                return;
             finished = true;
             clearTimeout(timer);
-
             if (error && !firstError) {
                 firstError = error;
             }
-
             if (!error) {
                 loaded[index] = { source, image };
             }
-
             pending -= 1;
-            if (pending === 0) callback(firstError, loaded);
+            if (pending === 0)
+                callback(firstError, loaded);
         };
-
         image.onload = () => {
             finish(null);
         };
-
         image.onerror = () => {
             finish(new Error("Failed to decode preview image"));
         };
-
         image.src = source.url;
-
         if (image.complete && (image.naturalWidth || image.width)) {
             setTimeout(() => finish(null), 0);
         }
     });
 }
-
 function findVariant(info, variantName) {
-    if (!info || !Array.isArray(info.variants)) return null;
-
+    if (!info || !Array.isArray(info.variants))
+        return null;
     for (let i = 0; i < info.variants.length; i += 1) {
-        if (info.variants[i].name === variantName) return info.variants[i];
+        if (info.variants[i].name === variantName)
+            return info.variants[i];
     }
-
     return null;
 }
-
 function copyImagePixels(targetCtx, source, image) {
     const width = source.width || image.naturalWidth || image.width;
     const height = source.height || image.naturalHeight || image.height;
-    if (!width || !height) return;
-
+    if (!width || !height)
+        return;
     const canvas = document.createElement("canvas");
-
     canvas.width = width;
     canvas.height = height;
-
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
+    if (!ctx)
+        return;
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(image, 0, 0, width, height);
-
     targetCtx.putImageData(ctx.getImageData(0, 0, width, height), source.x, source.y);
 }
-
 function setPreviewSourceCanvas(context, sourceCanvas, imageWidth, imageHeight) {
     const state = getPreviewState(context);
-    if (!state || !sourceCanvas || !imageWidth || !imageHeight) return;
-
+    if (!state || !sourceCanvas || !imageWidth || !imageHeight)
+        return;
     const previousView = state.view && state.imageWidth === imageWidth && state.imageHeight === imageHeight ? state.view : null;
     const viewport = getPreviewViewportSize(context);
-
     state.sourceCanvas = sourceCanvas;
     state.imageWidth = imageWidth;
     state.imageHeight = imageHeight;
     state.view = previousView ? clampPreviewView(previousView, imageWidth, imageHeight, viewport) : createInitialPreviewView(imageWidth, imageHeight, viewport);
     state.dragging = false;
-
     drawPreviewViewport(context);
 }
-
 function drawPreviewViewport(context) {
     const state = getPreviewState(context);
     const canvas = context && context.$el && context.$el.$previewCanvas;
     const empty = context && context.$el && context.$el.$previewEmpty;
-    if (!state || !state.sourceCanvas || !canvas) return;
-
+    if (!state || !state.sourceCanvas || !canvas)
+        return;
     const viewport = getPreviewViewportSize(context);
     const dpr = getDevicePixelRatio();
     const pixelWidth = Math.max(1, Math.floor(viewport.width * dpr));
     const pixelHeight = Math.max(1, Math.floor(viewport.height * dpr));
-
-    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
-    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
-
+    if (canvas.width !== pixelWidth)
+        canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight)
+        canvas.height = pixelHeight;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
+    if (!ctx)
+        return;
     state.view = clampPreviewView(state.view || createInitialPreviewView(state.imageWidth, state.imageHeight, viewport), state.imageWidth, state.imageHeight, viewport);
-
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, viewport.width, viewport.height);
     ctx.imageSmoothingEnabled = true;
     const drawScale = getPreviewDrawScale(state, viewport);
     ctx.drawImage(state.sourceCanvas, state.view.x, state.view.y, state.imageWidth * drawScale, state.imageHeight * drawScale);
-
-    if (empty) empty.style.display = "none";
+    if (empty)
+        empty.style.display = "none";
     setFieldText(context, "previewSize", `${state.imageWidth} x ${state.imageHeight} px`);
     setFieldText(context, "previewZoom", formatPreviewZoom(state));
 }
-
 function zoomPreviewAt(context, viewportX, viewportY, factor) {
     const state = getPreviewState(context);
-    if (!state || !state.view || !state.sourceCanvas) return;
-
+    if (!state || !state.view || !state.sourceCanvas)
+        return;
     const range = getPreviewScaleRange(state.imageWidth, state.imageHeight);
     const viewport = getPreviewViewportSize(context);
     const oldScale = state.view.scale;
     const scale = clamp(oldScale * factor, range.min, range.max);
-    if (scale === oldScale) return;
-
+    if (scale === oldScale)
+        return;
     const oldDrawScale = getPreviewDrawScale(state, viewport);
     const imageX = (viewportX - state.view.x) / oldDrawScale;
     const imageY = (viewportY - state.view.y) / oldDrawScale;
     const nextDrawScale = getPreviewDrawScale({ imageWidth: state.imageWidth, imageHeight: state.imageHeight, view: { scale } }, viewport);
-
-    state.view = clampPreviewView(
-        {
-            scale,
-            x: viewportX - imageX * nextDrawScale,
-            y: viewportY - imageY * nextDrawScale,
-        },
-        state.imageWidth,
-        state.imageHeight,
-        viewport,
-    );
+    state.view = clampPreviewView({
+        scale,
+        x: viewportX - imageX * nextDrawScale,
+        y: viewportY - imageY * nextDrawScale,
+    }, state.imageWidth, state.imageHeight, viewport);
     drawPreviewViewport(context);
 }
-
 function createInitialPreviewView(imageWidth, imageHeight, viewport) {
-    return clampPreviewView(
-        {
-            scale: 1,
-            x: 0,
-            y: 0,
-        },
-        imageWidth,
-        imageHeight,
-        viewport,
-    );
+    return clampPreviewView({
+        scale: 1,
+        x: 0,
+        y: 0,
+    }, imageWidth, imageHeight, viewport);
 }
-
 function clampPreviewView(view, imageWidth, imageHeight, viewport) {
     const range = getPreviewScaleRange(imageWidth, imageHeight);
     const scale = clamp(view && view.scale ? view.scale : range.max, range.min, range.max);
     const drawScale = getPreviewDrawScale({ imageWidth, imageHeight, view: { scale } }, viewport);
     const displayWidth = imageWidth * drawScale;
     const displayHeight = imageHeight * drawScale;
-
     let x = view && isFinite(view.x) ? view.x : 0;
     let y = view && isFinite(view.y) ? view.y : 0;
-
     if (displayWidth <= viewport.width) {
         x = (viewport.width - displayWidth) / 2;
-    } else {
+    }
+    else {
         x = clamp(x, viewport.width - displayWidth, 0);
     }
-
     if (displayHeight <= viewport.height) {
         y = (viewport.height - displayHeight) / 2;
-    } else {
+    }
+    else {
         y = clamp(y, viewport.height - displayHeight, 0);
     }
-
     return { scale, x, y };
 }
-
 function getPreviewScaleRange(imageWidth, imageHeight) {
     if (!imageWidth || !imageHeight) {
         return { min: PREVIEW_MIN_SCALE, max: PREVIEW_MIN_SCALE };
     }
-
     return {
         min: PREVIEW_MIN_SCALE,
         max: PREVIEW_MAX_SCALE,
     };
 }
-
 function getPreviewDrawScale(state, viewport) {
     return getPreviewFitScale(state.imageWidth, state.imageHeight, viewport) * state.view.scale;
 }
-
 function getPreviewFitScale(imageWidth, imageHeight, viewport) {
-    if (!imageWidth || !imageHeight || !viewport || !viewport.width || !viewport.height) return 1;
-
+    if (!imageWidth || !imageHeight || !viewport || !viewport.width || !viewport.height)
+        return 1;
     return Math.min(1, viewport.width / imageWidth, viewport.height / imageHeight);
 }
-
 function getPreviewViewportSize(context) {
     const canvas = context && context.$el && context.$el.$previewCanvas;
     const wrap = (context && context.$el && context.$el.$previewWrap) || (canvas && canvas.parentElement);
     const rect = wrap && typeof wrap.getBoundingClientRect === "function" ? wrap.getBoundingClientRect() : null;
     const width = Math.floor((rect && rect.width) || (wrap && wrap.clientWidth) || (canvas && canvas.clientWidth) || 256);
     const height = Math.floor((rect && rect.height) || (wrap && wrap.clientHeight) || (canvas && canvas.clientHeight) || 256);
-
     return {
         width: Math.max(1, width),
         height: Math.max(1, height),
     };
 }
-
 function getCanvasPoint(canvas, event) {
     const rect = canvas && typeof canvas.getBoundingClientRect === "function" ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
-
     return {
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
     };
 }
-
 function getPreviewState(context) {
     const holder = getPreviewStateHolder(context);
-    if (!holder) return null;
-
+    if (!holder)
+        return null;
     if (!holder.__pdpackPreviewState) {
         holder.__pdpackPreviewState = {
             sourceCanvas: null,
@@ -983,90 +877,77 @@ function getPreviewState(context) {
             dragY: 0,
         };
     }
-
     return holder.__pdpackPreviewState;
 }
-
 function formatPreviewZoom(state) {
     return `${Math.round(state.view.scale * 100)}%`;
 }
-
 function getDevicePixelRatio() {
     return typeof window !== "undefined" && window.devicePixelRatio ? window.devicePixelRatio : 1;
 }
-
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }
-
 function bumpPreviewRenderToken(context) {
     const holder = getPreviewStateHolder(context);
-    if (!holder) return 0;
-
+    if (!holder)
+        return 0;
     holder.__pdpackPreviewRenderToken = (holder.__pdpackPreviewRenderToken || 0) + 1;
     return holder.__pdpackPreviewRenderToken;
 }
-
 function getPreviewRenderToken(context) {
     const holder = getPreviewStateHolder(context);
     return holder ? holder.__pdpackPreviewRenderToken || 0 : 0;
 }
-
 function getPreviewStateHolder(context) {
     return context && context.$el ? context.$el : context || null;
 }
-
 function getPanelStateHolder(context) {
     return context && context.$el ? context.$el : context || null;
 }
-
 function isElementAttached(element) {
-    if (!element) return false;
-    if (element.isConnected !== undefined) return !!element.isConnected;
-    if (typeof document === "undefined" || !document.body || typeof document.body.contains !== "function") return true;
-
+    if (!element)
+        return false;
+    if (element.isConnected !== undefined)
+        return !!element.isConnected;
+    if (typeof document === "undefined" || !document.body || typeof document.body.contains !== "function")
+        return true;
     return document.body.contains(element);
 }
-
 function resolvePdpackPath(uuid, callback) {
     const syncPath = uuidToFspath(uuid);
     if (isPdpackFile(syncPath)) {
         callback(syncPath);
         return;
     }
-
     if (!EditorRef || !EditorRef.assetdb || typeof EditorRef.assetdb.queryPathByUuid !== "function") {
         callback("");
         return;
     }
-
     EditorRef.assetdb.queryPathByUuid(uuid, (err, filePath) => {
         if (err || !filePath) {
             callback("");
             return;
         }
-
         callback(filePath);
     });
 }
-
 function uuidToFspath(uuid) {
-    if (!EditorRef || !EditorRef.assetdb || typeof EditorRef.assetdb.uuidToFspath !== "function") return "";
-
+    if (!EditorRef || !EditorRef.assetdb || typeof EditorRef.assetdb.uuidToFspath !== "function")
+        return "";
     try {
         return EditorRef.assetdb.uuidToFspath(uuid) || "";
-    } catch (e) {
+    }
+    catch (e) {
         return "";
     }
 }
-
 function parsePdpackFile(filePath) {
-    if (!isPdpackFile(filePath)) return null;
-
+    if (!isPdpackFile(filePath))
+        return null;
     try {
         const buffer = Fs.readFileSync(filePath);
         const container = PdpackCore.parseContainer(buffer);
-
         return {
             version: container.header.version,
             flags: container.header.flags,
@@ -1091,120 +972,106 @@ function parsePdpackFile(filePath) {
             })),
             dataSize: container.header.dataSize,
         };
-    } catch (e) {
+    }
+    catch (e) {
         if (EditorRef && typeof EditorRef.error === "function") {
             EditorRef.error(`[pdpack-importer] Failed to parse '${filePath}':`, e.stack || e.message || e);
         }
         return null;
     }
 }
-
 function pngBytesToDataUrl(bytes) {
     if (typeof Buffer === "undefined") {
         throw new Error("Buffer is required to build pdpack preview data URLs");
     }
-
     return `data:image/png;base64,${Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64")}`;
 }
-
 function findUuidInValue(value) {
     value = unwrapDumpValue(value);
-    if (!value) return "";
-
+    if (!value)
+        return "";
     if (Array.isArray(value)) {
         for (let i = 0; i < value.length; i += 1) {
             const uuid = findUuidInValue(value[i]);
-            if (uuid) return uuid;
+            if (uuid)
+                return uuid;
         }
         return "";
     }
-
     if (typeof value === "string") {
         return isUuid(value) ? value : "";
     }
-
     if (typeof value !== "object") {
         return "";
     }
-
-    return (
-        readValue(value, "uuid") ||
+    return (readValue(value, "uuid") ||
         readValue(value, "assetUuid") ||
         findUuidInValue(readValue(value, "asset")) ||
         findUuidInValue(readValue(value, "meta")) ||
         findUuidInValue(readValue(value, "assetList")) ||
         findUuidInValue(readValue(value, "metaList")) ||
-        ""
-    );
+        "");
 }
-
 function findUuidInSelection() {
     const selection = EditorRef && EditorRef.Selection;
-    if (!selection) return "";
-
+    if (!selection)
+        return "";
     const methods = ["curActivate", "curSelection", "curGlobalSelection"];
     for (let i = 0; i < methods.length; i += 1) {
         const method = methods[i];
-        if (typeof selection[method] !== "function") continue;
-
+        if (typeof selection[method] !== "function")
+            continue;
         try {
             const uuid = findUuidInValue(selection[method]("asset"));
-            if (uuid) return uuid;
-        } catch (e) {}
+            if (uuid)
+                return uuid;
+        }
+        catch (e) { }
     }
-
     return "";
 }
-
 function readValue(source, key) {
     source = unwrapDumpValue(source);
-    if (!source || typeof source !== "object") return "";
-
+    if (!source || typeof source !== "object")
+        return "";
     return unwrapDumpValue(source[key]);
 }
-
 function unwrapDumpValue(value) {
     if (value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "value")) {
         return value.value;
     }
-
     return value;
 }
-
 function isUuid(value) {
     return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
-
 function isPdpackFile(filePath) {
     return !!filePath && typeof filePath === "string" && /\.pdpack$/i.test(filePath) && Fs && Fs.existsSync(filePath);
 }
-
 function formatFileName(filePath) {
-    if (!filePath) return "-";
-    if (!Path) return filePath;
-
+    if (!filePath)
+        return "-";
+    if (!Path)
+        return filePath;
     return Path.basename(filePath);
 }
-
 function formatBytes(size) {
-    if (size === undefined || size === null || size === "") return "-";
-
+    if (size === undefined || size === null || size === "")
+        return "-";
     const units = ["B", "KB", "MB", "GB"];
     let value = Number(size);
     let index = 0;
-
     while (value >= 1024 && index < units.length - 1) {
         value /= 1024;
         index += 1;
     }
-
     return `${index === 0 ? value : value.toFixed(2).replace(/\.00$/, "")} ${units[index]}`;
 }
-
 function tryRequire(name) {
     try {
         return require(name);
-    } catch (e) {
+    }
+    catch (e) {
         return null;
     }
 }

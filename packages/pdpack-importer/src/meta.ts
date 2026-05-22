@@ -1,8 +1,10 @@
 'use strict';
 
+export {};
+
 const Fs = require('fire-fs');
 const Path = require('fire-path');
-const PdpackCore = require('./dist/runtime-resource/pdpack-runtime/core/PdpackCore');
+const PdpackCore = require('../runtime-resource/pdpack-runtime/core/PdpackCore');
 
 const IMPORTER_TYPE = 'pdpack';
 const ASSET_TYPE = 'cc.PdPackAsset';

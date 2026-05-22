@@ -1,6 +1,17 @@
-import PortraitDeltaRenderer from "./pdpack-runtime-cc/PortraitDeltaRenderer";
-
 const { ccclass, property } = cc._decorator;
+
+interface PortraitDeltaRendererLike extends cc.Component {
+    pdpackPath: string;
+    onLoaded: Array<() => void>;
+    onVariantChanged: Array<(index: number, name: string) => void>;
+    onError: Array<(error: Error) => void>;
+    load(): Promise<void>;
+    switchToVariant(index: number): Promise<void>;
+    getVariantNames(): string[];
+    readonly currentVariantIndex: number;
+    readonly variantCount: number;
+    readonly isLoaded: boolean;
+}
 
 /**
  * 演示场景 UI 脚本
@@ -23,7 +34,7 @@ export default class PortraitDemoUI extends cc.Component {
     @property(cc.Prefab)
     variantBtnPrefab: cc.Prefab = null;
 
-    private _renderer: PortraitDeltaRenderer = null;
+    private _renderer: PortraitDeltaRendererLike = null;
     private _buttons: cc.Node[] = [];
 
     onLoad(): void {
@@ -31,7 +42,7 @@ export default class PortraitDemoUI extends cc.Component {
         cc.systemEvent.on(cc.SystemEvent.EventType.KEY_DOWN, this._onKeyDown, this);
 
         if (this.portraitNode) {
-            this._renderer = this.portraitNode.getComponent(PortraitDeltaRenderer);
+            this._renderer = this.portraitNode.getComponent("PortraitDeltaRenderer") as PortraitDeltaRendererLike;
         }
     }
 
@@ -130,7 +141,7 @@ export default class PortraitDemoUI extends cc.Component {
         this._renderer.switchToVariant(index);
     }
 
-    private _onKeyDown(event: cc.SystemEvent.EventKeyboard): void {
+    private _onKeyDown(event: cc.Event.EventKeyboard): void {
         if (!this._renderer || !this._renderer.isLoaded) return;
 
         switch (event.keyCode) {
@@ -167,7 +178,7 @@ export default class PortraitDemoUI extends cc.Component {
         for (let i = 0; i < this._buttons.length; i++) {
             const sprite = this._buttons[i].getComponent(cc.Sprite);
             if (sprite) {
-                sprite.color = i === this._renderer.currentVariantIndex ? cc.color(100, 180, 255) : cc.color(255, 255, 255);
+                sprite.node.color = i === this._renderer.currentVariantIndex ? cc.color(100, 180, 255) : cc.color(255, 255, 255);
             }
         }
     }

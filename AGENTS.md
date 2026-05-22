@@ -1,82 +1,239 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file gives coding agents the current project context and maintenance rules for this repository.
+
+## Language
+
+Default to Chinese in user-facing replies unless the user explicitly requests another language.
 
 ## Project Overview
 
-Cocos Creator 2.4.x demo project for the **Portrait Delta Pack (.pdpack)** format — a character portrait differential packing scheme. The project implements runtime loading, parsing, pixel-level merging, rendering, and dynamic variant switching of `.pdpack` files.
+This is a Cocos Creator 2.4.x demo project for Portrait Delta Pack (`.pdpack`) runtime loading and rendering.
 
-There is no traditional build system. Development is done inside the **Cocos Creator 2.4.x editor**. Open the project root with the editor to preview scenes, import assets, or configure build targets.
+The project contains:
 
-## Runtime Architecture
+| Area | Location | Purpose |
+|---|---|---|
+| Demo scene | `assets/Scene/PortraitDemo.fire` | Scene that loads and switches portrait variants |
+| Demo UI | `assets/Script/PortraitDemoUI.ts` | Buttons, keyboard navigation, status label |
+| Editor importer | `packages/pdpack-importer/src` | TypeScript source for `.pdpack` AssetDB importer and Inspector |
+| Editor entry output | `packages/pdpack-importer/dist` | Compiled CommonJS files used by Cocos package loading |
+| Runtime resource | `packages/pdpack-importer/runtime-resource/pdpack-runtime` | Runtime scripts mapped into the project by Cocos `runtime-resource` |
+| Shared parser | `packages/pdpack-importer/runtime-resource/pdpack-runtime/core` | Pure `.pdpack` binary parser shared by importer and runtime |
 
+There is no conventional app build system. The real application build is done in Cocos Creator. Local TypeScript checks and extension compilation are still useful and should be run after code changes.
+
+## Current Architecture
+
+```text
+packages/pdpack-importer
+├── package.json
+│   ├── main: dist/src/main.js
+│   ├── inspector.pdpack: ./dist/src/inspectors/pdpack/main.js
+│   └── runtime-resource: runtime-resource/pdpack-runtime
+├── src/
+│   ├── main.ts
+│   ├── meta.ts
+│   └── inspectors/pdpack/main.ts
+├── dist/
+│   ├── src/
+│   └── runtime-resource/pdpack-runtime/core/
+└── runtime-resource/pdpack-runtime/
+    ├── core/PdpackCore.ts
+    ├── core/PdpackCoreTypes.ts
+    ├── PdpackLoader.ts
+    ├── PdpackData.ts
+    ├── RawImage.ts
+    ├── UPNG.ts
+    ├── PortraitDeltaRenderer.ts
+    └── pdpack-asset.js
 ```
-PdpackBinaryReader          Platform-independent big-endian binary reader (DataView)
-    └─ PdpackLoader         CC asset pipeline registration (.pdpack) + binary parse → PdpackData
-         └─ PortraitRenderer   Pixel merge (base + diff regions) → Texture2D → Sprite node
-              └─ PortraitController  cc.Component: lifecycle, variant switching, event callbacks
-                   └─ PortraitDemoUI (T5)   Demo scene script: buttons, keyboard, status display
+
+Runtime flow:
+
+```text
+PortraitDemoUI
+  -> PortraitDeltaRenderer.load()
+  -> PdpackLoader.load(path | uuid | url)
+  -> PdpackLoader.parse()
+  -> PdpackCore.parseContainer()
+  -> RawImage.fromPng()
+  -> merged Texture2D / SpriteFrame
 ```
 
-### Key files under `assets/Script/pdpack-runtime-cc/`
+Editor importer flow:
+
+```text
+packages/pdpack-importer/dist/src/main.js
+  -> register .pdpack Meta
+  -> dist/src/meta.js
+  -> dist/runtime-resource/pdpack-runtime/core/PdpackCore.js
+  -> save cc.PdPackAsset JSON + native .pdpack copy
+  -> dist/src/inspectors/pdpack/main.js for preview
+```
+
+## Key Runtime Files
 
 | File | Role |
-|------|------|
-| `PdpackBinaryReader.ts` | Wraps `DataView` for big-endian read (uint8/16/32, bytes, string, seek/tell) |
-| `PdpackData.ts` | Parsed data model: `PdpackData`, `PdpackRegionInfo`, `PdpackVariantInfo` |
-| `PdpackLoader.ts` | Self-registers CC downloader + factory for `.pdpack`; parses header, offset table, data segments, metadata JSON |
-| `RawImage.ts` | RGBA pixel container; `fromPng()` via UPNG.js; `overwrite()` for diff merging; `toSpriteFrame()` via `Texture2D.initWithData` |
-| `UPNG.ts` | Pure-JS PNG decoder (decode + toRGBA8) — no native dependencies |
-| `PortraitRenderer.ts` | Merges base + diff pixels into a single `Texture2D` → `cc.Sprite`, avoids multi-layer alpha issues |
-| `PortraitController.ts` | `@ccclass` component: `load()` → `render()` → `switchToVariant()` / `switchToVariantByName()`, with callback arrays |
-| `index.ts` | Barrel export for the runtime package |
+|---|---|
+| `core/PdpackCore.ts` | Reads PDPK header, offset table, metadata JSON, base PNG bytes, and region PNG bytes |
+| `core/PdpackCoreTypes.ts` | Parser result contracts used by editor and runtime |
+| `PdpackLoader.ts` | Registers `.pdpack` downloader/factory, loads by path/UUID/remote URL, handles Android native file reads |
+| `PdpackData.ts` | Runtime data model consumed by renderer |
+| `RawImage.ts` | RGBA pixel container, PNG decode bridge, `Texture2D.initWithData` output |
+| `UPNG.ts` | Pure JavaScript PNG decoder; keep as vendored decoder code |
+| `PortraitDeltaRenderer.ts` | Cocos component that loads, renders, and switches variants |
+| `pdpack-asset.js` | Runtime `cc.PdPackAsset` class registration |
 
-### Demo scene (`assets/Script/PortraitDemoUI.ts`)
+`assets/Script/pdpack-runtime-cc` was removed. Do not restore it or add new runtime code there.
 
-Mounts on the scene root node. Expects `portraitNode` (with `PortraitController`), `variantLabel`, `statusLabel`, `buttonContainer`, and `variantBtnPrefab` (from `assets/resources/prefab/variantBtnPrefab.prefab`). Supports left/right arrow key navigation.
+## Loading Rules
 
-## Loading: UUID vs Path
+Primary demo loading uses a resources path:
 
-The CC editor does not natively recognize `.pdpack`. **Use UUID-based loading** as the primary method:
-
-```typescript
-// In PortraitController.pdpackPath:
-'ecd7233f-8154-4094-be87-00e0b72d10bc'  // from .pdpack.meta's uuid field
+```ts
+pdpackPath = "portraits/test/test_portrait";
 ```
 
-`PdpackLoader.load()` auto-detects the ID type:
-- **UUID** (hex with dashes) → `cc.assetManager.loadAny({url, ext:'.pdpack'})` — triggers downloader + factory
-- **http(s)://** → `cc.assetManager.loadRemote`
-- **Other** → `cc.resources.load(path, cc.BufferAsset)` — only works if editor knows `.pdpack`
+`PdpackLoader.load()` supports:
 
-## .pdpack Binary Format (v1)
+| Input | Loader path |
+|---|---|
+| resources path without extension | `cc.resources.load(path)` |
+| dashed UUID | `cc.assetManager.loadAny({ url, ext: ".pdpack" })` |
+| `http(s)://` URL | `cc.assetManager.loadRemote(url, { ext: ".pdpack" })` |
 
-Big-endian layout:
-- **Header** (24B): magic `PDPK`, version, flags (bit0=HAS_ALPHA), variant_count, offset_table ptr
-- **Offset table**: base PNG offset/size, metadata JSON offset/size, then per-variant region_count + region offset/size pairs
-- **Data segments**: base.png PNG bytes, metadata.json UTF-8, region PNGs
+Android/native local `.pdpack` URLs are read through `jsb.fileUtils.getDataFromFile` inside the registered downloader. This is intentional and fixes APK asset reads that fail through native `downloadFile` with `status:4720(no response)`.
 
-Test file: `assets/resources/portraits/test/test.pdpack`
+## Editor Extension Rules
 
-## Editor Extension (Planned)
+Edit source under `packages/pdpack-importer/src` and shared parser code under `packages/pdpack-importer/runtime-resource/pdpack-runtime/core`.
 
-`.pdpack` editor importer is a future task (see `docs/how-to-custom-assets-pipeline.md`). The planned architecture uses `packages/pdpack-importer/` with a custom `Meta` class inheriting from `Editor.metas['custom-asset']`, registering via `main.js`.
+Then rebuild:
 
-## Pixel Merging (Not Layer Stacking)
+```bash
+npx tsc -p packages/pdpack-importer/tsconfig.json --pretty false
+```
 
-`PortraitRenderer` creates one merged `Texture2D` rather than stacking multiple `Sprite` nodes. This avoids alpha compositing artifacts ("white blocks") that occurred with multi-layer Sprite approach (documented in TaskBoard).
+Important: `packages/pdpack-importer/tsconfig.json` must keep `target: "es2015"` or higher. Cocos Creator 2.4.11 exposes `Editor.metas["custom-asset"]` as a native class; ES5 output calls `_super.call(this, ...)` and breaks with:
 
-## Cross-Platform Notes
+```text
+Class constructors cannot be invoked without 'new'
+```
 
-- `Texture2D.initWithData(data, RGBA8888, w, h)` works on both Web and native — this is the unified approach
-- `UPNG.js` is pure JS, platform-independent
-- `PdpackBinaryReader` uses `DataView` with explicit big-endian (`false`), platform-independent
-- Avoid unconditional `jsb.*` references — guard with `cc.sys.isNative` if needed
+The root `tsconfig.json` excludes `packages` because package editor/runtime-resource source is compiled with the package-specific tsconfig.
 
-## Design Resolution
+## Shared Parser Boundary
 
-960×640 (landscape), fit-height mode (`settings/project.json`).
+`PdpackCore` must remain platform-independent.
 
-## Documentation
-- [CocosCreator 2.4.x manual docs](https://docs.cocos.com/creator/2.4/manual/zh)
-- [CocosCreator 2.4.x API docs](https://docs.cocos.com/creator/2.4/api/zh/)
+Allowed:
+
+- `ArrayBuffer`
+- `Uint8Array`
+- `DataView`
+- JSON parsing
+- explicit big-endian reads
+
+Not allowed in `PdpackCore`:
+
+- `cc`
+- `Editor`
+- `jsb`
+- DOM APIs
+- Node file system APIs
+- PNG decoding
+- `Texture2D` or `SpriteFrame` creation
+
+Keep PNG decode and rendering in runtime (`RawImage`, `PortraitDeltaRenderer`). Keep file I/O, AssetDB, and Inspector UI in the importer.
+
+## Binary Format
+
+`.pdpack` v1 layout is big-endian:
+
+```text
+Header, 24 bytes:
+  magic "PDPK"
+  uint16 version
+  uint16 flags
+  uint16 variant_count
+  uint32 offset_table_ptr
+  10 reserved bytes
+
+Offset table:
+  uint32 base_png_offset
+  uint32 base_png_size
+  uint32 metadata_json_offset
+  uint32 metadata_json_size
+  repeated per variant:
+    uint16 region_count
+    repeated per region:
+      uint32 region_png_offset
+      uint32 region_png_size
+```
+
+Metadata supplies image size, base variant name, variant names, and region rectangles.
+
+## Scene Notes
+
+The demo scene is `assets/Scene/PortraitDemo.fire`.
+
+Current scene facts:
+
+| Item | Value |
+|---|---|
+| Portrait node | `PortraitNode` |
+| Runtime component | `PortraitDeltaRenderer` from runtime-resource |
+| Component UUID | `528f9b0b-d9fa-4e60-bfbd-3596de649b9d` |
+| Compressed scene type | `528f9sL2fpOYL+9NZbeZJud` |
+| `pdpackPath` | `portraits/test/test_portrait` |
+| Design resolution | `960 x 640`, fit-height |
+
+When touching scene serialization, preserve the component type unless intentionally migrating script UUIDs.
+
+## Validation
+
+Run these after relevant changes:
+
+```bash
+npx tsc --noEmit --pretty false
+npx tsc -p packages/pdpack-importer/tsconfig.json --pretty false
+```
+
+Smoke-test the parser:
+
+```bash
+node -e "const fs=require('fs'); const core=require('./packages/pdpack-importer/dist/runtime-resource/pdpack-runtime/core/PdpackCore'); const c=core.parseContainer(fs.readFileSync('./assets/resources/portraits/test/test_portrait.pdpack')); console.log(c.header.version, c.header.variantCount, c.imageWidth, c.imageHeight)"
+```
+
+Expected values:
+
+```text
+1 3 1024 1024
+```
+
+For functional validation, use Cocos Creator:
+
+| Platform | Check |
+|---|---|
+| Web preview | path load succeeds, default portrait renders, variant buttons and left/right keys switch variants |
+| Android | no `status:4720(no response)`, path load succeeds, portrait renders, variants switch |
+
+## Coding Guidance
+
+- Prefer existing Cocos Creator 2.4 APIs and current project patterns.
+- Do not add silent fallbacks or fake success paths. Loading and parsing failures should surface clear errors.
+- Do not move generic parser logic back into importer or runtime-specific files.
+- Do not make `PdpackCore` depend on editor, runtime, DOM, or Node globals.
+- Do not manually edit `dist` as the source of truth; edit `src` or shared core and rebuild.
+- Do not introduce another runtime copy under `assets/Script`.
+- Keep vendored `UPNG.ts` behavior stable; small type annotations are acceptable, broad rewrites are not.
+- If changing package compilation, preserve ES2015 class inheritance for `PdPackMeta`.
+
+## Useful Docs
+
+- `README.md`: user-facing project overview and usage
+- `docs/tasks/TaskBoard.md`: implementation board and status
+- `docs/tasks/TaskSpec.md`: detailed refactor plan and constraints
+- `docs/how-to-custom-assets-pipeline.md`: custom AssetDB/importer investigation
+- `PDPack-README.md`: `.pdpack` format and external packer notes

@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "Custom importer for .pdpack files",
   "author": "",
-  "main": "main.js",
+  "main": "dist/src/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
   "runtime-resource": {
-    "path": "engine",
-    "name": "pdpack"
+    "path": "runtime-resource/runtime",
+    "name": "runtime"
   },
   "main-menu": {
     "Packages/test": {
@@ -14,11 +17,11 @@
     }
   },
   "inspector": {
-    "pdpack": "./inspectors/pdpack/main.js"
+    "pdpack": "./dist/src/inspectors/pdpack/main.js"
   },
   "reload": {
     "ignore": [
-      "engine/**/*"
+      "runtime-resource/**/*"
     ]
   }
 }
