@@ -6,7 +6,7 @@ const PREVIEW_MIN_SCALE = 1;
 const PREVIEW_MAX_SCALE = 4;
 const Fs = tryRequire("fire-fs") || tryRequire("fs");
 const Path = tryRequire("fire-path") || tryRequire("path");
-const PdpackCore = require("../../../runtime-resource/pdpack-runtime/core/PdpackCore");
+const PdpackCore = require("../../../runtime-resource/runtime/core/PdpackCore");
 const EditorRef = typeof Editor !== "undefined" ? Editor : null;
 const VueRef = typeof globalThis !== "undefined" ? globalThis.Vue : typeof Vue !== "undefined" ? Vue : null;
 const panel = {

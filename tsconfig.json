@@ -6,7 +6,13 @@
     "experimentalDecorators": true,
     "skipLibCheck": true,
     "outDir": "temp/vscode-dist",
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "PdpackManager": [
+        "packages/pdpack-importer/runtime-resource/runtime/PdpackManager"
+      ]
+    }
   },
   "exclude": [
     "node_modules",

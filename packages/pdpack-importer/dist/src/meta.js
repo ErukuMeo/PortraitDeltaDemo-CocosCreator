@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const Fs = require('fire-fs');
 const Path = require('fire-path');
-const PdpackCore = require('../runtime-resource/pdpack-runtime/core/PdpackCore');
+const PdpackCore = require('../runtime-resource/runtime/core/PdpackCore');
 const IMPORTER_TYPE = 'pdpack';
 const ASSET_TYPE = 'cc.PdPackAsset';
 const CustomAssetMeta = Editor.metas['custom-asset'];

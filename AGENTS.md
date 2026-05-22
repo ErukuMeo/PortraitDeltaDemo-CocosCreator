@@ -18,8 +18,8 @@ The project contains:
 | Demo UI | `assets/Script/PortraitDemoUI.ts` | Buttons, keyboard navigation, status label |
 | Editor importer | `packages/pdpack-importer/src` | TypeScript source for `.pdpack` AssetDB importer and Inspector |
 | Editor entry output | `packages/pdpack-importer/dist` | Compiled CommonJS files used by Cocos package loading |
-| Runtime resource | `packages/pdpack-importer/runtime-resource/pdpack-runtime` | Runtime scripts mapped into the project by Cocos `runtime-resource` |
-| Shared parser | `packages/pdpack-importer/runtime-resource/pdpack-runtime/core` | Pure `.pdpack` binary parser shared by importer and runtime |
+| Runtime resource | `packages/pdpack-importer/runtime-resource/runtime` | Runtime scripts mapped into the project by Cocos `runtime-resource` |
+| Shared parser | `packages/pdpack-importer/runtime-resource/runtime/core` | Pure `.pdpack` binary parser shared by importer and runtime |
 
 There is no conventional app build system. The real application build is done in Cocos Creator. Local TypeScript checks and extension compilation are still useful and should be run after code changes.
 
@@ -30,22 +30,23 @@ packages/pdpack-importer
 ├── package.json
 │   ├── main: dist/src/main.js
 │   ├── inspector.pdpack: ./dist/src/inspectors/pdpack/main.js
-│   └── runtime-resource: runtime-resource/pdpack-runtime
+│   └── runtime-resource: runtime-resource/runtime
 ├── src/
 │   ├── main.ts
 │   ├── meta.ts
 │   └── inspectors/pdpack/main.ts
 ├── dist/
 │   ├── src/
-│   └── runtime-resource/pdpack-runtime/core/
-└── runtime-resource/pdpack-runtime/
+│   └── runtime-resource/runtime/core/
+└── runtime-resource/runtime/
     ├── core/PdpackCore.ts
     ├── core/PdpackCoreTypes.ts
     ├── PdpackLoader.ts
+    ├── PdpackManager.ts
+    ├── PdpackSpriteFrame.ts
     ├── PdpackData.ts
     ├── RawImage.ts
     ├── UPNG.ts
-    ├── PortraitDeltaRenderer.ts
     └── pdpack-asset.js
 ```
 
@@ -53,11 +54,12 @@ Runtime flow:
 
 ```text
 PortraitDemoUI
-  -> PortraitDeltaRenderer.load()
+  -> pdpackManager.getSpriteFrame()
   -> PdpackLoader.load(path | uuid | url)
   -> PdpackLoader.parse()
   -> PdpackCore.parseContainer()
   -> RawImage.fromPng()
+  -> PdpackSpriteFrame.createPdpackSpriteFrame()
   -> merged Texture2D / SpriteFrame
 ```
 
@@ -67,7 +69,7 @@ Editor importer flow:
 packages/pdpack-importer/dist/src/main.js
   -> register .pdpack Meta
   -> dist/src/meta.js
-  -> dist/runtime-resource/pdpack-runtime/core/PdpackCore.js
+  -> dist/runtime-resource/runtime/core/PdpackCore.js
   -> save cc.PdPackAsset JSON + native .pdpack copy
   -> dist/src/inspectors/pdpack/main.js for preview
 ```
@@ -79,10 +81,11 @@ packages/pdpack-importer/dist/src/main.js
 | `core/PdpackCore.ts` | Reads PDPK header, offset table, metadata JSON, base PNG bytes, and region PNG bytes |
 | `core/PdpackCoreTypes.ts` | Parser result contracts used by editor and runtime |
 | `PdpackLoader.ts` | Registers `.pdpack` downloader/factory, loads by path/UUID/remote URL, handles Android native file reads |
-| `PdpackData.ts` | Runtime data model consumed by renderer |
+| `PdpackManager.ts` | Non-component runtime API for loading, SpriteFrame creation, and explicit release |
+| `PdpackSpriteFrame.ts` | Shared variant resolution, pixel merge, SpriteFrame creation, and destruction |
+| `PdpackData.ts` | Runtime data model consumed by manager and SpriteFrame creation |
 | `RawImage.ts` | RGBA pixel container, PNG decode bridge, `Texture2D.initWithData` output |
 | `UPNG.ts` | Pure JavaScript PNG decoder; keep as vendored decoder code |
-| `PortraitDeltaRenderer.ts` | Cocos component that loads, renders, and switches variants |
 | `pdpack-asset.js` | Runtime `cc.PdPackAsset` class registration |
 
 `assets/Script/pdpack-runtime-cc` was removed. Do not restore it or add new runtime code there.
@@ -107,7 +110,7 @@ Android/native local `.pdpack` URLs are read through `jsb.fileUtils.getDataFromF
 
 ## Editor Extension Rules
 
-Edit source under `packages/pdpack-importer/src` and shared parser code under `packages/pdpack-importer/runtime-resource/pdpack-runtime/core`.
+Edit source under `packages/pdpack-importer/src` and shared parser code under `packages/pdpack-importer/runtime-resource/runtime/core`.
 
 Then rebuild:
 
@@ -145,7 +148,7 @@ Not allowed in `PdpackCore`:
 - PNG decoding
 - `Texture2D` or `SpriteFrame` creation
 
-Keep PNG decode and rendering in runtime (`RawImage`, `PortraitDeltaRenderer`). Keep file I/O, AssetDB, and Inspector UI in the importer.
+Keep PNG decode and rendering in runtime (`RawImage`, `PdpackSpriteFrame`, `PdpackManager`). Keep file I/O, AssetDB, and Inspector UI in the importer.
 
 ## Binary Format
 
@@ -183,13 +186,12 @@ Current scene facts:
 | Item | Value |
 |---|---|
 | Portrait node | `PortraitNode` |
-| Runtime component | `PortraitDeltaRenderer` from runtime-resource |
-| Component UUID | `528f9b0b-d9fa-4e60-bfbd-3596de649b9d` |
-| Compressed scene type | `528f9sL2fpOYL+9NZbeZJud` |
-| `pdpackPath` | `portraits/test/test_portrait` |
+| Portrait component | Native `cc.Sprite` |
+| Runtime API | `pdpackManager` from `PdpackManager` |
+| `PortraitDemoUI.pdpackPath` | `portraits/test/test_portrait` |
 | Design resolution | `960 x 640`, fit-height |
 
-When touching scene serialization, preserve the component type unless intentionally migrating script UUIDs.
+When touching scene serialization, keep `PortraitNode` on native `cc.Sprite`; do not reintroduce `PortraitDeltaRenderer`.
 
 ## Validation
 
@@ -203,7 +205,7 @@ npx tsc -p packages/pdpack-importer/tsconfig.json --pretty false
 Smoke-test the parser:
 
 ```bash
-node -e "const fs=require('fs'); const core=require('./packages/pdpack-importer/dist/runtime-resource/pdpack-runtime/core/PdpackCore'); const c=core.parseContainer(fs.readFileSync('./assets/resources/portraits/test/test_portrait.pdpack')); console.log(c.header.version, c.header.variantCount, c.imageWidth, c.imageHeight)"
+node -e "const fs=require('fs'); const core=require('./packages/pdpack-importer/dist/runtime-resource/runtime/core/PdpackCore'); const c=core.parseContainer(fs.readFileSync('./assets/resources/portraits/test/test_portrait.pdpack')); console.log(c.header.version, c.header.variantCount, c.imageWidth, c.imageHeight)"
 ```
 
 Expected values:

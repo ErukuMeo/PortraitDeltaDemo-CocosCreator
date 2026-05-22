@@ -28,9 +28,10 @@ packages/pdpack-importer
     └── runtime/
         ├── core/PdpackCore.ts                通用二进制解析核心
         ├── PdpackLoader.ts                   path / UUID / remote 加载与 Android native 读取
+        ├── PdpackManager.ts                  非组件 API，管理加载、生成 SpriteFrame 和显式释放
+        ├── PdpackSpriteFrame.ts              共享 SpriteFrame 合成与销毁逻辑
         ├── RawImage.ts                       RGBA 像素容器与 Texture2D 输出
-        ├── UPNG.ts                           纯 JS PNG 解码
-        └── PortraitDeltaRenderer.ts          Cocos 组件，渲染和切换变体
+        └── UPNG.ts                           纯 JS PNG 解码
 
 assets/Script/PortraitDemoUI.ts               Demo UI、按钮和键盘切换
 assets/resources/portraits/test/test_portrait.pdpack
@@ -42,8 +43,9 @@ assets/resources/portraits/test/test_portrait.pdpack
 .pdpack bytes
   -> PdpackCore.parseContainer                纯解析，无 cc / Editor / jsb
   -> PdpackLoader.parse                       转为 PdpackData，解码 PNG
-  -> PortraitDeltaRenderer                    合成像素，生成 SpriteFrame
-  -> PortraitDemoUI                           展示状态和变体切换
+  -> PdpackSpriteFrame                        合成像素，生成 SpriteFrame
+  -> pdpackManager                            管理加载、生成 SpriteFrame 和显式释放
+  -> PortraitDemoUI                           使用原生 cc.Sprite 展示状态和变体切换
 ```
 
 ## 快速开始
@@ -53,7 +55,7 @@ assets/resources/portraits/test/test_portrait.pdpack
 3. 打开 `assets/Scene/PortraitDemo.fire`。
 4. 运行 Web 预览。
 
-Demo 里的 `PortraitDeltaRenderer.pdpackPath` 当前配置为：
+Demo 里的 `PortraitDemoUI.pdpackPath` 当前配置为：
 
 ```ts
 "portraits/test/test_portrait"
@@ -97,6 +99,39 @@ Class constructors cannot be invoked without 'new'
 | HTTP URL | `https://.../file.pdpack` | `cc.assetManager.loadRemote(url, { ext: ".pdpack" })` |
 
 当前 Demo 以 path 加载为主，要求 `.pdpack` 位于 `assets/resources` 下，并由 importer 导入到 AssetDB。Android 构建后，`assets/resources/config.json` 应包含 path 和 uuid 映射。
+
+## 非组件 API
+
+外部脚本可以直接通过运行时服务生成 `cc.SpriteFrame`，再赋值给原生 `cc.Sprite`：
+
+```ts
+import { pdpackManager } from "PdpackManager";
+
+const spriteFrame = await pdpackManager.getSpriteFrame(
+  "portraits/test/test_portrait",
+  "variant_name",
+);
+
+this.portrait.spriteFrame = spriteFrame;
+```
+
+`getSpriteFrame(source, variant)` 支持的 `source` 与 `PdpackLoader.load(id)` 一致；`variant` 可以是变体名称或索引。`pdpackManager` 会缓存解析后的 `PdpackData`，但每次 `getSpriteFrame` 都会生成新的 `Texture2D/SpriteFrame`。调用方替换或不再使用该帧时，需要显式释放：
+
+```ts
+this.portrait.spriteFrame = null;
+pdpackManager.release(spriteFrame);
+```
+
+可用 API：
+
+| API | 作用 |
+|---|---|
+| `pdpackManager.load(source)` | 加载并缓存 `.pdpack` 解析数据 |
+| `pdpackManager.getSpriteFrame(source, variant)` | 生成一个新的 `cc.SpriteFrame` |
+| `pdpackManager.getVariantNames(source)` | 获取变体名称列表 |
+| `pdpackManager.release(spriteFrame)` | 销毁由该 manager 生成的单个 `SpriteFrame` 和底层 `Texture2D` |
+| `pdpackManager.unload(source)` | 移除指定 `.pdpack` 的解析数据缓存 |
+| `pdpackManager.releaseAll()` | 销毁全部已托管 `SpriteFrame` 并清空解析缓存 |
 
 ## 验证命令
 
