@@ -18,6 +18,14 @@ export interface PdpackSpriteFrameResult {
   height: number;
 }
 
+export interface PdpackTextureResult {
+  texture: cc.Texture2D;
+  variantIndex: number;
+  variantName: string;
+  width: number;
+  height: number;
+}
+
 export function resolvePdpackVariant(data: PdpackData, selector: PdpackVariantSelector = 0): PdpackVariantRef {
   if (typeof selector === "number") {
     if (selector < 0 || selector >= data.variantCount || selector !== Math.floor(selector)) {
@@ -52,21 +60,34 @@ export function createPdpackSpriteFrame(
   data: PdpackData,
   selector: PdpackVariantSelector = 0,
 ): PdpackSpriteFrameResult {
-  if (!data.baseRawImage) {
-    throw new Error("PdpackSpriteFrame: no base image in parsed pdpack data");
-  }
-
-  const resolved = resolvePdpackVariant(data, selector);
-  const spriteFrame = mergeToSpriteFrame(data.baseRawImage, resolved.variant.regions);
-  const texture = spriteFrame.getTexture();
+  const result = createPdpackTexture(data, selector);
+  const rect = cc.rect(0, 0, result.width, result.height);
+  const spriteFrame = new cc.SpriteFrame(result.texture, rect);
 
   return {
     spriteFrame,
-    texture,
+    texture: result.texture,
+    variantIndex: result.variantIndex,
+    variantName: result.variantName,
+    width: result.width,
+    height: result.height,
+  };
+}
+
+export function createPdpackTexture(
+  data: PdpackData,
+  selector: PdpackVariantSelector = 0,
+): PdpackTextureResult {
+  const baseRawImage = requireBaseRawImage(data);
+  const resolved = resolvePdpackVariant(data, selector);
+  const rawImage = mergeToRawImage(baseRawImage, resolved.variant.regions);
+
+  return {
+    texture: rawImage.toTexture(),
     variantIndex: resolved.index,
     variantName: resolved.name,
-    width: data.imageWidth || data.baseRawImage.width,
-    height: data.imageHeight || data.baseRawImage.height,
+    width: data.imageWidth || baseRawImage.width,
+    height: data.imageHeight || baseRawImage.height,
   };
 }
 
@@ -76,7 +97,18 @@ export function destroyPdpackSpriteFrame(spriteFrame: cc.SpriteFrame): void {
   texture.destroy();
 }
 
-function mergeToSpriteFrame(base: RawImage, regions: PdpackRegionInfo[]): cc.SpriteFrame {
+export function destroyPdpackTexture(texture: cc.Texture2D): void {
+  texture.destroy();
+}
+
+function requireBaseRawImage(data: PdpackData): RawImage {
+  if (!data.baseRawImage) {
+    throw new Error("PdpackSpriteFrame: no base image in parsed pdpack data");
+  }
+  return data.baseRawImage;
+}
+
+function mergeToRawImage(base: RawImage, regions: PdpackRegionInfo[]): RawImage {
   const merged = base.clone();
   for (const region of regions) {
     if (!region.rawImage) {
@@ -84,5 +116,5 @@ function mergeToSpriteFrame(base: RawImage, regions: PdpackRegionInfo[]): cc.Spr
     }
     merged.overwrite(region.rawImage, region.x, region.y);
   }
-  return merged.toSpriteFrame();
+  return merged;
 }

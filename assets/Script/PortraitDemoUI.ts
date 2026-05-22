@@ -37,6 +37,12 @@ export default class PortraitDemoUI extends cc.Component {
     }
 
     async start(): Promise<void> {
+        if (!this.portraitSprite) {
+            const err = new Error("PortraitDemoUI: portraitSprite is not set");
+            this._setStatus("错误: 未配置 portraitSprite", true);
+            throw err;
+        }
+
         if (!this.pdpackPath) {
             const err = new Error("PortraitDemoUI: pdpackPath is not set");
             this._setStatus("错误: 未配置 pdpackPath", true);
@@ -46,7 +52,8 @@ export default class PortraitDemoUI extends cc.Component {
         this._setStatus("正在加载...");
 
         try {
-            this._variantNames = await pdpackManager.getVariantNames(this.pdpackPath);
+            const data = await pdpackManager.load(this.pdpackPath);
+            this._variantNames = data.getVariantNames();
             if (this._variantNames.length === 0) {
                 throw new Error("PortraitDemoUI: pdpack contains no variants");
             }
@@ -158,7 +165,7 @@ export default class PortraitDemoUI extends cc.Component {
         this._fitPortraitNode(spriteFrame);
 
         if (oldSpriteFrame) {
-            pdpackManager.release(oldSpriteFrame);
+            pdpackManager.releaseSpriteFrame(oldSpriteFrame);
         }
 
         this._updateUI();
@@ -184,7 +191,7 @@ export default class PortraitDemoUI extends cc.Component {
         if (this.portraitSprite) {
             this.portraitSprite.spriteFrame = null;
         }
-        pdpackManager.release(this._currentSpriteFrame);
+        pdpackManager.releaseSpriteFrame(this._currentSpriteFrame);
         this._currentSpriteFrame = null;
     }
 

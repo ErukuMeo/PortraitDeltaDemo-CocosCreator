@@ -100,7 +100,7 @@ Class constructors cannot be invoked without 'new'
 
 当前 Demo 以 path 加载为主，要求 `.pdpack` 位于 `assets/resources` 下，并由 importer 导入到 AssetDB。Android 构建后，`assets/resources/config.json` 应包含 path 和 uuid 映射。
 
-## 非组件 API
+## 外部调用
 
 外部脚本可以直接通过运行时服务生成 `cc.SpriteFrame`，再赋值给原生 `cc.Sprite`：
 
@@ -115,63 +115,25 @@ const spriteFrame = await pdpackManager.getSpriteFrame(
 this.portrait.spriteFrame = spriteFrame;
 ```
 
-`getSpriteFrame(source, variant)` 支持的 `source` 与 `PdpackLoader.load(id)` 一致；`variant` 可以是变体名称或索引。`pdpackManager` 会缓存解析后的 `PdpackData`，但每次 `getSpriteFrame` 都会生成新的 `Texture2D/SpriteFrame`。调用方替换或不再使用该帧时，需要显式释放：
+`getSpriteFrame(path, variant)` 支持的 `path` 与 `PdpackLoader.load(id)` 一致；`variant` 可以是变体名称或索引。`pdpackManager` 会缓存解析后的 `PdpackData`，但每次 `getSpriteFrame` 都会生成新的 `Texture2D/SpriteFrame`。调用方替换或不再使用该帧时，需要显式释放：
 
 ```ts
 this.portrait.spriteFrame = null;
-pdpackManager.release(spriteFrame);
+pdpackManager.releaseSpriteFrame(spriteFrame);
 ```
 
 可用 API：
 
 | API | 作用 |
 |---|---|
-| `pdpackManager.load(source)` | 加载并缓存 `.pdpack` 解析数据 |
-| `pdpackManager.getSpriteFrame(source, variant)` | 生成一个新的 `cc.SpriteFrame` |
-| `pdpackManager.getVariantNames(source)` | 获取变体名称列表 |
-| `pdpackManager.release(spriteFrame)` | 销毁由该 manager 生成的单个 `SpriteFrame` 和底层 `Texture2D` |
-| `pdpackManager.unload(source)` | 移除指定 `.pdpack` 的解析数据缓存 |
-| `pdpackManager.releaseAll()` | 销毁全部已托管 `SpriteFrame` 并清空解析缓存 |
-
-## 验证命令
-
-项目级 TypeScript 检查：
-
-```bash
-npx tsc --noEmit --pretty false
-```
-
-扩展包构建：
-
-```bash
-npx tsc -p packages/pdpack-importer/tsconfig.json --pretty false
-```
-
-共享解析核心 smoke test：
-
-```bash
-node -e "const fs=require('fs'); const core=require('./packages/pdpack-importer/dist/runtime-resource/runtime/core/PdpackCore'); const c=core.parseContainer(fs.readFileSync('./assets/resources/portraits/test/test_portrait.pdpack')); console.log(c.header.version, c.header.variantCount, c.imageWidth, c.imageHeight)"
-```
-
-预期输出包含：
-
-```text
-1 3 1024 1024
-```
-
-## 关键注意事项
-
-| 事项 | 说明 |
-|---|---|
-| 不要恢复 `assets/Script/runtime-cc` | 运行时已经迁入 `runtime-resource`，旧目录会造成同名组件和解析逻辑重复 |
-| 不要把扩展包 TS target 改回 ES5 | 会触发 `Class constructors cannot be invoked without 'new'` |
-| 不要在普通 runtime 脚本里直接跨目录 import `packages/...` | runtime 应通过 `runtime-resource` 映射参与 Creator 编译和构建 |
-| `PdpackCore` 保持纯净 | 不应依赖 `cc`、`Editor`、`jsb`、DOM 或文件系统 |
-| `dist` 是编辑器入口 | 修改 `src` 或 shared core 后要重新构建 |
-
-## 相关文档
-
-- `docs/tasks/TaskBoard.md`: 重构任务板和当前进度
-- `docs/tasks/TaskSpec.md`: runtime-resource 重构实施细节
-- `docs/how-to-custom-assets-pipeline.md`: Cocos 自定义资源导入调研
-- `PDPack-README.md`: `.pdpack` 格式和打包工具说明
+| `pdpackManager.load(path, variant = 0)` | 加载并缓存 `.pdpack` 解析数据，同时校验指定变体存在 |
+| `pdpackManager.getSpriteFrame(path, variant = 0)` | 生成指定变体的 `cc.SpriteFrame` |
+| `pdpackManager.getSpriteFrames(path)` | 按变体顺序生成全部 `cc.SpriteFrame` |
+| `pdpackManager.getTexture(path, variant = 0)` | 生成指定变体的 `cc.Texture2D` |
+| `pdpackManager.getTextures(path)` | 按变体顺序生成全部 `cc.Texture2D` |
+| `pdpackManager.release(path)` | 释放指定路径下的全部托管帧、纹理和解析缓存 |
+| `pdpackManager.relase(path)` | `release(path)` 的兼容拼写入口 |
+| `pdpackManager.releaseSpriteFrame(spriteFrame)` | 释放单个托管 `SpriteFrame` 及其底层 `Texture2D` |
+| `pdpackManager.releaseSpriteFrames(spriteFrames)` | 批量释放托管 `SpriteFrame` |
+| `pdpackManager.releaseTexture(texture)` | 释放单个托管 `Texture2D` |
+| `pdpackManager.releaseTextures(textures)` | 批量释放托管 `Texture2D` |

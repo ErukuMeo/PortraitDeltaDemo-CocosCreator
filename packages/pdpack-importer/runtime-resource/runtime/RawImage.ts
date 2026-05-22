@@ -34,8 +34,8 @@ export class RawImage {
     }
   }
 
-  /** Create a cc.SpriteFrame from this image via Texture2D.initWithData (cross-platform). */
-  toSpriteFrame(): cc.SpriteFrame {
+  /** Create a cc.Texture2D from this image via Texture2D.initWithData (cross-platform). */
+  toTexture(): cc.Texture2D {
     const texture = new cc.Texture2D();
     texture.initWithData(
       this.pixels,
@@ -45,6 +45,12 @@ export class RawImage {
     );
     texture.handleLoadedTexture(false);
     texture.packable = false;
+    return texture;
+  }
+
+  /** Create a cc.SpriteFrame from this image via Texture2D.initWithData (cross-platform). */
+  toSpriteFrame(): cc.SpriteFrame {
+    const texture = this.toTexture();
     const rect = cc.rect(0, 0, this.width, this.height);
     return new cc.SpriteFrame(texture, rect);
   }
