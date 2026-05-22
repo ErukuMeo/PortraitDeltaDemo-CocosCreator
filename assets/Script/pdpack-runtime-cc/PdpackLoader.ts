@@ -2,6 +2,8 @@ import { PdpackBinaryReader } from "./PdpackBinaryReader";
 import { PdpackData, PdpackRegionInfo } from "./PdpackData";
 import { RawImage } from "./RawImage";
 
+declare const jsb: any;
+
 /** 注册 .pdpack 扩展管线（模块加载时执行一次） */
 let _registered = false;
 
@@ -11,19 +13,66 @@ function ensureRegistered(): void {
 
   // 1. Downloader — 将 .pdpack 作为 ArrayBuffer 下载
   cc.assetManager.downloader.register(".pdpack", (url: string, options: any, onComplete: Function) => {
+    if (isNativeLocalAssetUrl(url)) {
+      readNativeLocalFile(url, onComplete);
+      return;
+    }
+
     options.responseType = "arraybuffer";
-    cc.assetManager.downloader.downloadFile(url, options, options.onFileProgress, onComplete);
+    (cc.assetManager.downloader as any).downloadFile(url, options, options.onFileProgress, onComplete);
   });
 
   // 2. Factory — 创建 cc.BufferAsset，后续可通过 asset._nativeAsset 获取 ArrayBuffer
-  cc.assetManager.factory.register(".pdpack", (id: string, data: any, options: any, onComplete: Function) => {
+  (cc.assetManager as any).factory.register(".pdpack", (id: string, data: any, options: any, onComplete: Function) => {
     const out = new cc.BufferAsset();
-    out._nativeUrl = id;
-    out._nativeAsset = data; // data 是 downloader 返回的 ArrayBuffer
+    (out as any)._nativeUrl = id;
+    (out as any)._nativeAsset = data; // data 是 downloader 返回的 ArrayBuffer/TypedArray
     onComplete(null, out);
   });
 
   // Parser 无需注册 — 二进制类型 parser.parse() 找不到 handler 时自动透传
+}
+
+function isNativeLocalAssetUrl(url: string): boolean {
+  return !!(cc.sys && cc.sys.isNative) && !/^https?:\/\//i.test(url);
+}
+
+function readNativeLocalFile(url: string, onComplete: Function): void {
+  if (typeof jsb === "undefined" || !jsb.fileUtils) {
+    onComplete(new Error(`PdpackLoader: jsb.fileUtils is unavailable for native file '${url}'`));
+    return;
+  }
+
+  const fileUtils = jsb.fileUtils;
+  let readPath = url;
+  let data: any = null;
+
+  try {
+    const normalizedUrl = url.replace(/^file:\/\//i, "");
+    const fullPath = fileUtils.fullPathForFilename
+      ? fileUtils.fullPathForFilename(normalizedUrl)
+      : normalizedUrl;
+    readPath = fullPath || normalizedUrl;
+    data = fileUtils.getDataFromFile(readPath);
+  } catch (e) {
+    onComplete(new Error(`PdpackLoader: failed to read native file '${url}': ${e.message || e}`));
+    return;
+  }
+
+  if (!hasBinaryData(data)) {
+    onComplete(new Error(`PdpackLoader: failed to read native file '${url}' from '${readPath}'`));
+    return;
+  }
+
+  onComplete(null, data);
+}
+
+function hasBinaryData(data: any): boolean {
+  if (data instanceof ArrayBuffer) return data.byteLength > 0;
+  if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView && ArrayBuffer.isView(data)) {
+    return data.byteLength > 0;
+  }
+  return false;
 }
 
 /**
@@ -34,11 +83,23 @@ function ensureRegistered(): void {
  */
 function toArrayBuffer(data: any): ArrayBuffer {
   if (data instanceof ArrayBuffer) return data;
-  if (data && data.buffer instanceof ArrayBuffer) return data.buffer; // TypedArray
+  if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView && ArrayBuffer.isView(data)) {
+    return typedArrayToArrayBuffer(data);
+  }
   const native = (data as any)?._nativeAsset;
   if (native instanceof ArrayBuffer) return native;
-  if (native && native.buffer instanceof ArrayBuffer) return native.buffer;
+  if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView && ArrayBuffer.isView(native)) {
+    return typedArrayToArrayBuffer(native);
+  }
   throw new Error("PdpackLoader: unable to extract ArrayBuffer, got " + typeof data);
+}
+
+function typedArrayToArrayBuffer(view: ArrayBufferView): ArrayBuffer {
+  const buffer = view.buffer;
+  if (view.byteOffset === 0 && view.byteLength === buffer.byteLength) {
+    return buffer;
+  }
+  return buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
 }
 
 /** 判断字符串是否为 UUID 格式 */
@@ -58,7 +119,7 @@ export class PdpackLoader {
    * 通用加载入口，自动识别输入类型：
    * - UUID（如 ecd7233f-...）→ cc.assetManager.loadAny（绕过 bundle，推荐）
    * - URL（http(s)://...）→ cc.assetManager.loadRemote
-   * - 其他路径 → cc.resources.load（需要编辑器识别 .pdpack 扩展名）
+   * - 其他路径 → cc.resources.load（resources 路径，需由 pdpack-importer 导入）
    *
    * @param id 资源 UUID / 远程 URL / resources 路径
    */
@@ -112,7 +173,7 @@ export class PdpackLoader {
         if (err) {
           reject(new Error(
             `PdpackLoader.load: '${path}' — ${err.message || err}。` +
-            `提示：编辑器不识别 .pdpack 扩展名时，请使用 UUID 加载（在 .pdpack.meta 中可找到）`
+            `请确认该 .pdpack 位于 assets/resources 下，并已由 pdpack-importer 导入。`
           ));
           return;
         }
