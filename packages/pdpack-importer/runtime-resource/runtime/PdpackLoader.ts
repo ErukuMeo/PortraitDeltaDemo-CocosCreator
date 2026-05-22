@@ -214,10 +214,10 @@ export class PdpackLoader {
     data.flags = container.header.flags;
     data.imageWidth = container.imageWidth;
     data.imageHeight = container.imageHeight;
-    data.baseVariantName = container.baseVariantName;
-    data.baseRawImage = RawImage.fromPng(container.basePngBytes);
-    if (!data.imageWidth) data.imageWidth = data.baseRawImage.width;
-    if (!data.imageHeight) data.imageHeight = data.baseRawImage.height;
+    data.defaultVariantName = container.baseVariantName;
+    data.defaultVariantRawImage = RawImage.fromPng(container.basePngBytes);
+    if (!data.imageWidth) data.imageWidth = data.defaultVariantRawImage.width;
+    if (!data.imageHeight) data.imageHeight = data.defaultVariantRawImage.height;
 
     for (let vi = 0; vi < container.variants.length; vi++) {
       const variant = container.variants[vi];
@@ -235,8 +235,17 @@ export class PdpackLoader {
       data.variants.push({ name: variant.name || String(vi), regions });
     }
 
-    if (data.baseVariantName && !data.variants.some(v => v.name === data.baseVariantName)) {
-      data.variants.unshift({ name: data.baseVariantName, regions: [] });
+    if (!data.defaultVariantName) {
+      throw new Error("PdpackLoader.parse: default variant name is missing");
+    }
+
+    const defaultVariant = data.getVariantByName(data.defaultVariantName);
+    if (!defaultVariant) {
+      throw new Error(`PdpackLoader.parse: default variant '${data.defaultVariantName}' is not listed in variants`);
+    }
+
+    if (defaultVariant.regions.length !== 0) {
+      throw new Error(`PdpackLoader.parse: default variant '${data.defaultVariantName}' must have an empty diff`);
     }
 
     return data;

@@ -57,8 +57,14 @@ export default class PortraitDemoUI extends cc.Component {
                 throw new Error("PortraitDemoUI: pdpack contains no variants");
             }
 
+            const defaultVariantName = await pdpackManager.getDefaultVariant(this.pdpackPath);
+            const defaultVariantIndex = this._variantNames.indexOf(defaultVariantName);
+            if (defaultVariantIndex === -1) {
+                throw new Error(`PortraitDemoUI: default variant '${defaultVariantName}' not found`);
+            }
+
             this._createVariantButtons();
-            await this._switchToVariant(0, false);
+            await this._switchToVariant(defaultVariantIndex, false);
             this._isLoaded = true;
             this._setLoadedStatus();
         } catch (e) {

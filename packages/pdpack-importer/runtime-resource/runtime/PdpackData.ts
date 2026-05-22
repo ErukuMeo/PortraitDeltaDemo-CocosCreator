@@ -6,9 +6,9 @@ import { RawImage } from "./RawImage";
 
 /** 差异区域信息 */
 export interface PdpackRegionInfo {
-  /** 区域在基础图上的 x 偏移（像素，相对于左上角） */
+  /** 区域在画布上的 x 偏移（像素，相对于左上角） */
   x: number;
-  /** 区域在基础图上的 y 偏移（像素，相对于左上角） */
+  /** 区域在画布上的 y 偏移（像素，相对于左上角） */
   y: number;
   /** 区域宽度（像素） */
   width: number;
@@ -34,10 +34,10 @@ export class PdpackData {
   imageWidth: number = 0;
   /** 立绘图像总高度（像素） */
   imageHeight: number = 0;
-  /** 解码后的基础图 RGBA 像素数据 */
-  baseRawImage: RawImage | null = null;
-  /** 基准变体名称 */
-  baseVariantName: string = '';
+  /** 解码后的默认变体 RGBA 像素数据 */
+  defaultVariantRawImage: RawImage | null = null;
+  /** 默认变体名称 */
+  defaultVariantName: string = '';
   /** 所有变体列表 */
   variants: PdpackVariantInfo[] = [];
 

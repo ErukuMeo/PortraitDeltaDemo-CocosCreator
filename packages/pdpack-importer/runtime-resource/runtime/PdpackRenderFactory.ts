@@ -26,27 +26,33 @@ export interface PdpackTextureResult {
   height: number;
 }
 
-export function resolvePdpackVariant(data: PdpackData, selector: PdpackVariantSelector = 0): PdpackVariantRef {
-  if (typeof selector === "number") {
-    if (selector < 0 || selector >= data.variantCount || selector !== Math.floor(selector)) {
-      throw new Error(`PdpackRenderFactory: variant index ${selector} out of range [0, ${data.variantCount - 1}]`);
+export function resolvePdpackVariant(data: PdpackData, selector?: PdpackVariantSelector): PdpackVariantRef {
+  const resolvedSelector = selector === undefined ? data.defaultVariantName : selector;
+
+  if (typeof resolvedSelector === "number") {
+    if (resolvedSelector < 0 || resolvedSelector >= data.variantCount || resolvedSelector !== Math.floor(resolvedSelector)) {
+      throw new Error(`PdpackRenderFactory: variant index ${resolvedSelector} out of range [0, ${data.variantCount - 1}]`);
     }
 
-    const variant = data.getVariant(selector);
+    const variant = data.getVariant(resolvedSelector);
     if (!variant) {
-      throw new Error(`PdpackRenderFactory: variant index ${selector} not found`);
+      throw new Error(`PdpackRenderFactory: variant index ${resolvedSelector} not found`);
     }
 
     return {
-      index: selector,
+      index: resolvedSelector,
       name: variant.name,
       variant,
     };
   }
 
-  const index = data.variants.findIndex((variant) => variant.name === selector);
+  if (!resolvedSelector) {
+    throw new Error("PdpackRenderFactory: default variant name is missing");
+  }
+
+  const index = data.variants.findIndex((variant) => variant.name === resolvedSelector);
   if (index === -1) {
-    throw new Error(`PdpackRenderFactory: variant '${selector}' not found`);
+    throw new Error(`PdpackRenderFactory: variant '${resolvedSelector}' not found`);
   }
 
   return {
@@ -58,7 +64,7 @@ export function resolvePdpackVariant(data: PdpackData, selector: PdpackVariantSe
 
 export function createPdpackSpriteFrame(
   data: PdpackData,
-  selector: PdpackVariantSelector = 0,
+  selector?: PdpackVariantSelector,
 ): PdpackSpriteFrameResult {
   const result = createPdpackTexture(data, selector);
   const rect = cc.rect(0, 0, result.width, result.height);
@@ -76,18 +82,18 @@ export function createPdpackSpriteFrame(
 
 export function createPdpackTexture(
   data: PdpackData,
-  selector: PdpackVariantSelector = 0,
+  selector?: PdpackVariantSelector,
 ): PdpackTextureResult {
-  const baseRawImage = requireBaseRawImage(data);
+  const defaultVariantRawImage = requireDefaultVariantRawImage(data);
   const resolved = resolvePdpackVariant(data, selector);
-  const rawImage = mergeToRawImage(baseRawImage, resolved.variant.regions);
+  const rawImage = mergeToRawImage(defaultVariantRawImage, resolved.variant.regions);
 
   return {
     texture: rawImage.toTexture(),
     variantIndex: resolved.index,
     variantName: resolved.name,
-    width: data.imageWidth || baseRawImage.width,
-    height: data.imageHeight || baseRawImage.height,
+    width: data.imageWidth || defaultVariantRawImage.width,
+    height: data.imageHeight || defaultVariantRawImage.height,
   };
 }
 
@@ -101,15 +107,15 @@ export function destroyPdpackTexture(texture: cc.Texture2D): void {
   texture.destroy();
 }
 
-function requireBaseRawImage(data: PdpackData): RawImage {
-  if (!data.baseRawImage) {
-    throw new Error("PdpackRenderFactory: no base image in parsed pdpack data");
+function requireDefaultVariantRawImage(data: PdpackData): RawImage {
+  if (!data.defaultVariantRawImage) {
+    throw new Error("PdpackRenderFactory: no default variant image in parsed pdpack data");
   }
-  return data.baseRawImage;
+  return data.defaultVariantRawImage;
 }
 
-function mergeToRawImage(base: RawImage, regions: PdpackRegionInfo[]): RawImage {
-  const merged = base.clone();
+function mergeToRawImage(defaultVariantImage: RawImage, regions: PdpackRegionInfo[]): RawImage {
+  const merged = defaultVariantImage.clone();
   for (const region of regions) {
     if (!region.rawImage) {
       throw new Error(`PdpackRenderFactory: region at (${region.x},${region.y}) has no decoded image`);

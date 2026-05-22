@@ -26,9 +26,9 @@ export class PdpackManager {
 
   /**
    * 加载并缓存指定 .pdpack。
-   * variant 参数用于在加载完成后校验指定变体是否存在。
+   * variant 参数用于在加载完成后校验指定变体是否存在；不传则校验默认变体。
    */
-  async load(path: string, variant: PdpackVariantSelector = 0): Promise<void> {
+  async load(path: string, variant?: PdpackVariantSelector): Promise<void> {
     const data = await this._loadData(path, "load");
     resolvePdpackVariant(data, variant);
   }
@@ -43,10 +43,18 @@ export class PdpackManager {
   }
 
   /**
+   * 获取默认变体名称。
+   */
+  async getDefaultVariant(path: string): Promise<string> {
+    const data = await this._loadData(path, "getDefaultVariant");
+    return data.defaultVariantName;
+  }
+
+  /**
    * 生成指定变体的 SpriteFrame。
    * 返回对象由 pdpackManager 托管，调用方不再使用时必须调用 releaseSpriteFrame。
    */
-  async getSpriteFrame(path: string, variant: PdpackVariantSelector = 0): Promise<cc.SpriteFrame> {
+  async getSpriteFrame(path: string, variant?: PdpackVariantSelector): Promise<cc.SpriteFrame> {
     const data = await this._loadData(path, "getSpriteFrame");
     const result = createPdpackSpriteFrame(data, variant);
     this._trackSpriteFrame(path, result.spriteFrame);
@@ -74,7 +82,7 @@ export class PdpackManager {
    * 生成指定变体的 Texture2D。
    * 返回对象由 pdpackManager 托管，调用方不再使用时必须调用 releaseTexture。
    */
-  async getTexture(path: string, variant: PdpackVariantSelector = 0): Promise<cc.Texture2D> {
+  async getTexture(path: string, variant?: PdpackVariantSelector): Promise<cc.Texture2D> {
     const data = await this._loadData(path, "getTexture");
     const result = createPdpackTexture(data, variant);
     this._trackTexture(path, result.texture);

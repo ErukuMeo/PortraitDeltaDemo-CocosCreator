@@ -55,11 +55,11 @@ const panel = {
             <div class="pdpack-section">
                 <div class="pdpack-section-title">VARIANTS</div>
                 <div class="pdpack-row">
-                    <span class="pdpack-label" title="metadata 中记录的基础图像名称，作为差分合成的底图。">基础图</span>
-                    <span class="pdpack-value pdpack-mono pdpack-break" id="base">-</span>
+                    <span class="pdpack-label" title="metadata 中记录的默认变体名称。">默认变体</span>
+                    <span class="pdpack-value pdpack-mono pdpack-break" id="defaultVariant">-</span>
                 </div>
                 <div class="pdpack-row">
-                    <span class="pdpack-label" title="文件头中记录的变体数量。">数量</span>
+                    <span class="pdpack-label" title="文件头中记录的变体数量，包含默认变体。">数量</span>
                     <span class="pdpack-value pdpack-mono" id="variantCount">-</span>
                 </div>
                 <div class="pdpack-row pdpack-row-block">
@@ -72,10 +72,8 @@ const panel = {
         <div class="pdpack-section pdpack-preview-section">
             <div class="pdpack-section-title">PREVIEW</div>
             <div class="pdpack-row">
-                <span class="pdpack-label" title="当前预览的基础图或变体。选择变体时会将对应差分区域合成到基础图上。">预览目标</span>
-                <select id="variantSelect" class="pdpack-select">
-                    <option value="__base__">基础图</option>
-                </select>
+                <span class="pdpack-label" title="当前预览的变体。默认变体和其他变体使用同一套变体选择逻辑。">预览目标</span>
+                <select id="variantSelect" class="pdpack-select"></select>
             </div>
             <div class="pdpack-row">
                 <span class="pdpack-label" title="当前预览画面的实际像素尺寸。">预览尺寸</span>
@@ -249,7 +247,7 @@ const panel = {
         canvas: "#canvas",
         alpha: "#alpha",
         dataSize: "#dataSize",
-        base: "#base",
+        defaultVariant: "#defaultVariant",
         variantCount: "#variantCount",
         variantNames: "#variantNames",
         variantSelect: "#variantSelect",
@@ -276,7 +274,7 @@ const panel = {
             pdpackUuid: "-",
             pdpackInfo: null,
             _pdpackPreview: null,
-            _pdpackCurrentVariant: "__base__",
+            _pdpackCurrentVariant: "",
             _pdpackAssetList: null,
             _pdpackMetaList: null,
             _pdpackResolveToken: "",
@@ -445,7 +443,7 @@ function clearInfoFields(context) {
     setFieldText(context, "canvas", "-");
     setFieldText(context, "alpha", "-");
     setFieldText(context, "dataSize", "-");
-    setFieldText(context, "base", "-");
+    setFieldText(context, "defaultVariant", "-");
     setFieldText(context, "variantCount", "-");
     setFieldText(context, "variantNames", "-");
     setFieldText(context, "previewSize", "-");
@@ -466,14 +464,14 @@ function renderPdpackInfo(context, filePath, info) {
     setFieldText(context, "canvas", info.imageWidth && info.imageHeight ? `${info.imageWidth} x ${info.imageHeight} px` : "-");
     setFieldText(context, "alpha", info.flags & 1 ? "是" : "否");
     setFieldText(context, "dataSize", formatBytes(info.dataSize));
-    setFieldText(context, "base", info.baseVariantName || "-");
+    setFieldText(context, "defaultVariant", info.defaultVariantName || "-");
     setFieldText(context, "variantCount", `${info.variantCount}`);
     setFieldText(context, "variantNames", info.variantNames.length > 0 ? info.variantNames.join("\n") : "-");
 
     context._pdpackPreview = info;
-    context._pdpackCurrentVariant = "__base__";
-    populateVariantSelect(context, info);
-    renderPreview(context, "__base__");
+    context._pdpackCurrentVariant = getInitialVariantName(info);
+    populateVariantSelect(context, info, context._pdpackCurrentVariant);
+    renderPreview(context, context._pdpackCurrentVariant);
 }
 
 function setFieldText(context, field, text) {
@@ -490,7 +488,7 @@ function bindVariantSelect(context) {
 
     context._pdpackVariantSelectBound = true;
     context.$el.$variantSelect.addEventListener("change", () => {
-        context._pdpackCurrentVariant = context.$el.$variantSelect.value || "__base__";
+        context._pdpackCurrentVariant = context.$el.$variantSelect.value || "";
         renderPreview(context, context._pdpackCurrentVariant);
     });
 }
@@ -588,7 +586,7 @@ function unbindPreviewCanvasInteractions(context) {
     holder.__pdpackPreviewEvents = null;
 }
 
-function populateVariantSelect(context, info) {
+function populateVariantSelect(context, info, selectedVariantName = "") {
     const select = context && context.$el && context.$el.$variantSelect;
     if (!select) return;
 
@@ -596,15 +594,13 @@ function populateVariantSelect(context, info) {
         select.removeChild(select.firstChild);
     }
 
-    appendOption(select, "__base__", "基础图", false);
-
     if (info && Array.isArray(info.variants)) {
         info.variants.forEach((variant) => {
             appendOption(select, variant.name, variant.name, false);
         });
     }
 
-    select.value = "__base__";
+    select.value = selectedVariantName || getInitialVariantName(info);
 }
 
 function appendOption(select, value, text, disabled) {
@@ -622,9 +618,9 @@ function renderPreview(context, variantName) {
     }
 
     const info = context._pdpackPreview;
-    const variant = variantName === "__base__" ? null : findVariant(info, variantName);
+    const variant = findVariant(info, variantName);
 
-    if (variantName !== "__base__" && !variant) {
+    if (!variant) {
         clearPreviewCanvas(context);
         setFieldText(context, "previewSize", "未找到变体");
         return;
@@ -636,7 +632,7 @@ function renderPreview(context, variantName) {
 function renderCompositedPreview(context, info, variant) {
     const canvas = context && context.$el && context.$el.$previewCanvas;
     const empty = context && context.$el && context.$el.$previewEmpty;
-    if (!canvas || !info || !info.baseImageUrl) {
+    if (!canvas || !info || !info.defaultVariantImageUrl) {
         clearPreviewCanvas(context);
         return;
     }
@@ -656,9 +652,9 @@ function renderCompositedPreview(context, info, variant) {
         }
 
         try {
-            const baseImage = loaded[0].image;
-            const width = info.imageWidth || baseImage.naturalWidth || baseImage.width;
-            const height = info.imageHeight || baseImage.naturalHeight || baseImage.height;
+            const defaultVariantImage = loaded[0].image;
+            const width = info.imageWidth || defaultVariantImage.naturalWidth || defaultVariantImage.width;
+            const height = info.imageHeight || defaultVariantImage.naturalHeight || defaultVariantImage.height;
 
             const sourceCanvas = document.createElement("canvas");
             sourceCanvas.width = width;
@@ -717,7 +713,7 @@ function clearPreviewCanvas(context) {
 }
 
 function collectPreviewImageSources(info, variant) {
-    const sources = [{ url: info.baseImageUrl, x: 0, y: 0, width: 0, height: 0 }];
+    const sources = [{ url: info.defaultVariantImageUrl, x: 0, y: 0, width: 0, height: 0 }];
 
     if (variant && Array.isArray(variant.regions)) {
         variant.regions.forEach((region) => {
@@ -784,6 +780,11 @@ function loadImages(sources, callback) {
             setTimeout(() => finish(null), 0);
         }
     });
+}
+
+function getInitialVariantName(info) {
+    if (!info) return "";
+    return info.defaultVariantName || "";
 }
 
 function findVariant(info, variantName) {
@@ -1068,17 +1069,27 @@ function parsePdpackFile(filePath) {
     try {
         const buffer = Fs.readFileSync(filePath);
         const container = PdpackCore.parseContainer(buffer);
+        const defaultVariant = findVariant(container, container.baseVariantName);
+        if (!container.baseVariantName) {
+            throw new Error("default variant name is missing");
+        }
+        if (!defaultVariant) {
+            throw new Error(`default variant '${container.baseVariantName}' is not listed in variants`);
+        }
+        if (defaultVariant.regions.length !== 0) {
+            throw new Error(`default variant '${container.baseVariantName}' must have an empty diff`);
+        }
 
         return {
             version: container.header.version,
             flags: container.header.flags,
-            variantCount: container.header.variantCount,
+            variantCount: container.variants.length,
             imageWidth: container.imageWidth,
             imageHeight: container.imageHeight,
-            baseVariantName: container.baseVariantName,
+            defaultVariantName: container.baseVariantName,
             variantNames: container.variantNames,
-            baseImageUrl: pngBytesToDataUrl(container.basePngBytes),
-            basePngSize: container.basePngSize,
+            defaultVariantImageUrl: pngBytesToDataUrl(container.basePngBytes),
+            defaultVariantPngSize: container.basePngSize,
             variants: container.variants.map((variant) => ({
                 name: variant.name,
                 regions: variant.regions.map((region) => ({

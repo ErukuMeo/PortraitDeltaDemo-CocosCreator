@@ -2,7 +2,7 @@
 
 这是一个 Cocos Creator 2.4.x 示例项目，用于演示 `.pdpack` 角色立绘差分包在编辑器导入、运行时加载、像素合成和变体切换中的完整流程。
 
-`.pdpack` 是 Portrait Delta Pack 二进制格式：一个基础 PNG，加上每个变体的差异区域 PNG 和 metadata。运行时不是叠加多层 Sprite，而是把基础图和差异区域合成为一张 `Texture2D`，避免透明边缘和白块类混合问题。
+`.pdpack` 是 Portrait Delta Pack 二进制格式：解析层仍读取文件内的 base PNG，但运行时把它映射为默认变体的完整图像；默认变体在变体列表中只有空 diff，其他变体由默认变体图像加差异区域合成为一张 `Texture2D`，避免透明边缘和白块类混合问题。
 
 ## 当前状态
 
@@ -42,8 +42,8 @@ assets/resources/portraits/test/test_portrait.pdpack
 ```text
 .pdpack bytes
   -> PdpackCore.parseContainer                纯解析，无 cc / Editor / jsb
-  -> PdpackLoader.parse                       转为 PdpackData，解码 PNG
-  -> PdpackRenderFactory                      合成像素，生成 Texture2D/SpriteFrame
+  -> PdpackLoader.parse                       转为 PdpackData，解码默认变体和差异 PNG
+  -> PdpackRenderFactory                      按变体合成像素，生成 Texture2D/SpriteFrame
   -> pdpackManager                            管理加载、生成渲染资源和显式释放
   -> PortraitDemoUI                           使用原生 cc.Sprite 展示状态和变体切换
 ```
@@ -126,11 +126,12 @@ pdpackManager.releaseSpriteFrame(spriteFrame);
 
 | API | 作用 |
 |---|---|
-| `pdpackManager.load(path, variant = 0)` | 加载并缓存 `.pdpack`，同时校验指定变体存在 |
+| `pdpackManager.load(path, variant)` | 加载并缓存 `.pdpack`，同时校验指定变体存在；不传时校验默认变体 |
 | `pdpackManager.getVariants(path)` | 获取全部变体名称数组 |
-| `pdpackManager.getSpriteFrame(path, variant = 0)` | 生成指定变体的 `cc.SpriteFrame` |
+| `pdpackManager.getDefaultVariant(path)` | 获取默认变体名称 |
+| `pdpackManager.getSpriteFrame(path, variant)` | 生成指定变体的 `cc.SpriteFrame`；不传时生成默认变体 |
 | `pdpackManager.getSpriteFrames(path)` | 按变体顺序生成全部 `cc.SpriteFrame` |
-| `pdpackManager.getTexture(path, variant = 0)` | 生成指定变体的 `cc.Texture2D` |
+| `pdpackManager.getTexture(path, variant)` | 生成指定变体的 `cc.Texture2D`；不传时生成默认变体 |
 | `pdpackManager.getTextures(path)` | 按变体顺序生成全部 `cc.Texture2D` |
 | `pdpackManager.release(path)` | 释放指定路径下的全部托管帧、纹理和解析缓存 |
 | `pdpackManager.releaseSpriteFrame(spriteFrame)` | 释放单个托管 `SpriteFrame` 及其底层 `Texture2D` |
