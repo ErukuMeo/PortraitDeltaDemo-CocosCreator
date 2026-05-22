@@ -28,8 +28,8 @@ packages/pdpack-importer
     └── runtime/
         ├── core/PdpackCore.ts                通用二进制解析核心
         ├── PdpackLoader.ts                   path / UUID / remote 加载与 Android native 读取
-        ├── PdpackManager.ts                  非组件 API，管理加载、生成 SpriteFrame 和显式释放
-        ├── PdpackSpriteFrame.ts              共享 SpriteFrame 合成与销毁逻辑
+        ├── PdpackManager.ts                  非组件 API，管理加载、生成渲染资源和显式释放
+        ├── PdpackRenderFactory.ts            共享 Texture2D/SpriteFrame 合成与销毁逻辑
         ├── RawImage.ts                       RGBA 像素容器与 Texture2D 输出
         └── UPNG.ts                           纯 JS PNG 解码
 
@@ -43,8 +43,8 @@ assets/resources/portraits/test/test_portrait.pdpack
 .pdpack bytes
   -> PdpackCore.parseContainer                纯解析，无 cc / Editor / jsb
   -> PdpackLoader.parse                       转为 PdpackData，解码 PNG
-  -> PdpackSpriteFrame                        合成像素，生成 SpriteFrame
-  -> pdpackManager                            管理加载、生成 SpriteFrame 和显式释放
+  -> PdpackRenderFactory                      合成像素，生成 Texture2D/SpriteFrame
+  -> pdpackManager                            管理加载、生成渲染资源和显式释放
   -> PortraitDemoUI                           使用原生 cc.Sprite 展示状态和变体切换
 ```
 
@@ -115,7 +115,7 @@ const spriteFrame = await pdpackManager.getSpriteFrame(
 this.portrait.spriteFrame = spriteFrame;
 ```
 
-`getSpriteFrame(path, variant)` 支持的 `path` 与 `PdpackLoader.load(id)` 一致；`variant` 可以是变体名称或索引。`pdpackManager` 会缓存解析后的 `PdpackData`，但每次 `getSpriteFrame` 都会生成新的 `Texture2D/SpriteFrame`。调用方替换或不再使用该帧时，需要显式释放：
+`getSpriteFrame(path, variant)` 支持的 `path` 与 `PdpackLoader.load(id)` 一致；`variant` 可以是变体名称或索引。`pdpackManager` 会缓存内部解析数据，但不会把 `PdpackData` 暴露给外部；每次 `getSpriteFrame` 都会生成新的 `Texture2D/SpriteFrame`。调用方替换或不再使用该帧时，需要显式释放：
 
 ```ts
 this.portrait.spriteFrame = null;
@@ -126,13 +126,13 @@ pdpackManager.releaseSpriteFrame(spriteFrame);
 
 | API | 作用 |
 |---|---|
-| `pdpackManager.load(path, variant = 0)` | 加载并缓存 `.pdpack` 解析数据，同时校验指定变体存在 |
+| `pdpackManager.load(path, variant = 0)` | 加载并缓存 `.pdpack`，同时校验指定变体存在 |
+| `pdpackManager.getVariants(path)` | 获取全部变体名称数组 |
 | `pdpackManager.getSpriteFrame(path, variant = 0)` | 生成指定变体的 `cc.SpriteFrame` |
 | `pdpackManager.getSpriteFrames(path)` | 按变体顺序生成全部 `cc.SpriteFrame` |
 | `pdpackManager.getTexture(path, variant = 0)` | 生成指定变体的 `cc.Texture2D` |
 | `pdpackManager.getTextures(path)` | 按变体顺序生成全部 `cc.Texture2D` |
 | `pdpackManager.release(path)` | 释放指定路径下的全部托管帧、纹理和解析缓存 |
-| `pdpackManager.relase(path)` | `release(path)` 的兼容拼写入口 |
 | `pdpackManager.releaseSpriteFrame(spriteFrame)` | 释放单个托管 `SpriteFrame` 及其底层 `Texture2D` |
 | `pdpackManager.releaseSpriteFrames(spriteFrames)` | 批量释放托管 `SpriteFrame` |
 | `pdpackManager.releaseTexture(texture)` | 释放单个托管 `Texture2D` |

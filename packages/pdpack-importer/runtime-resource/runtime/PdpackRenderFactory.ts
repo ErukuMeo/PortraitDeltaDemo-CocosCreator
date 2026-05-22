@@ -29,12 +29,12 @@ export interface PdpackTextureResult {
 export function resolvePdpackVariant(data: PdpackData, selector: PdpackVariantSelector = 0): PdpackVariantRef {
   if (typeof selector === "number") {
     if (selector < 0 || selector >= data.variantCount || selector !== Math.floor(selector)) {
-      throw new Error(`PdpackSpriteFrame: variant index ${selector} out of range [0, ${data.variantCount - 1}]`);
+      throw new Error(`PdpackRenderFactory: variant index ${selector} out of range [0, ${data.variantCount - 1}]`);
     }
 
     const variant = data.getVariant(selector);
     if (!variant) {
-      throw new Error(`PdpackSpriteFrame: variant index ${selector} not found`);
+      throw new Error(`PdpackRenderFactory: variant index ${selector} not found`);
     }
 
     return {
@@ -46,7 +46,7 @@ export function resolvePdpackVariant(data: PdpackData, selector: PdpackVariantSe
 
   const index = data.variants.findIndex((variant) => variant.name === selector);
   if (index === -1) {
-    throw new Error(`PdpackSpriteFrame: variant '${selector}' not found`);
+    throw new Error(`PdpackRenderFactory: variant '${selector}' not found`);
   }
 
   return {
@@ -103,7 +103,7 @@ export function destroyPdpackTexture(texture: cc.Texture2D): void {
 
 function requireBaseRawImage(data: PdpackData): RawImage {
   if (!data.baseRawImage) {
-    throw new Error("PdpackSpriteFrame: no base image in parsed pdpack data");
+    throw new Error("PdpackRenderFactory: no base image in parsed pdpack data");
   }
   return data.baseRawImage;
 }
@@ -112,7 +112,7 @@ function mergeToRawImage(base: RawImage, regions: PdpackRegionInfo[]): RawImage 
   const merged = base.clone();
   for (const region of regions) {
     if (!region.rawImage) {
-      throw new Error(`PdpackSpriteFrame: region at (${region.x},${region.y}) has no decoded image`);
+      throw new Error(`PdpackRenderFactory: region at (${region.x},${region.y}) has no decoded image`);
     }
     merged.overwrite(region.rawImage, region.x, region.y);
   }

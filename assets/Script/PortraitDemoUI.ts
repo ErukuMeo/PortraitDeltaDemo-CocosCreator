@@ -52,8 +52,7 @@ export default class PortraitDemoUI extends cc.Component {
         this._setStatus("正在加载...");
 
         try {
-            const data = await pdpackManager.load(this.pdpackPath);
-            this._variantNames = data.getVariantNames();
+            this._variantNames = await pdpackManager.getVariants(this.pdpackPath);
             if (this._variantNames.length === 0) {
                 throw new Error("PortraitDemoUI: pdpack contains no variants");
             }

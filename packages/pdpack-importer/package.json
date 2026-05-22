@@ -11,11 +11,6 @@
     "path": "runtime-resource/runtime",
     "name": "runtime"
   },
-  "main-menu": {
-    "Packages/test": {
-      "message": "pdpack:test"
-    }
-  },
   "inspector": {
     "pdpack": "./dist/src/inspectors/pdpack/main.js"
   },

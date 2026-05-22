@@ -7,7 +7,7 @@ import {
   destroyPdpackTexture,
   PdpackVariantSelector,
   resolvePdpackVariant,
-} from "./PdpackSpriteFrame";
+} from "./PdpackRenderFactory";
 
 interface ManagedSpriteFrame {
   path: string;
@@ -25,19 +25,21 @@ export class PdpackManager {
   private _textures: ManagedTexture[] = [];
 
   /**
-   * 加载并缓存指定 .pdpack 解析结果。
+   * 加载并缓存指定 .pdpack。
    * variant 参数用于在加载完成后校验指定变体是否存在。
    */
-  async load(path: string, variant: PdpackVariantSelector = 0): Promise<PdpackData> {
-    this._requirePath(path, "load");
-
-    if (!this._packs[path]) {
-      this._packs[path] = PdpackLoader.load(path);
-    }
-
-    const data = await this._packs[path];
+  async load(path: string, variant: PdpackVariantSelector = 0): Promise<void> {
+    const data = await this._loadData(path, "load");
     resolvePdpackVariant(data, variant);
-    return data;
+  }
+
+  /**
+   * 获取指定 .pdpack 的全部变体名称。
+   * 返回数组是数据快照，调用方修改该数组不会影响内部缓存。
+   */
+  async getVariants(path: string): Promise<string[]> {
+    const data = await this._loadData(path, "getVariants");
+    return data.getVariantNames();
   }
 
   /**
@@ -45,12 +47,9 @@ export class PdpackManager {
    * 返回对象由 pdpackManager 托管，调用方不再使用时必须调用 releaseSpriteFrame。
    */
   async getSpriteFrame(path: string, variant: PdpackVariantSelector = 0): Promise<cc.SpriteFrame> {
-    const data = await this.load(path, variant);
+    const data = await this._loadData(path, "getSpriteFrame");
     const result = createPdpackSpriteFrame(data, variant);
-    this._spriteFrames.push({
-      path,
-      spriteFrame: result.spriteFrame,
-    });
+    this._trackSpriteFrame(path, result.spriteFrame);
     return result.spriteFrame;
   }
 
@@ -59,11 +58,13 @@ export class PdpackManager {
    * 返回数组内每一项都由 pdpackManager 托管，可用 releaseSpriteFrames 批量释放。
    */
   async getSpriteFrames(path: string): Promise<cc.SpriteFrame[]> {
-    const data = await this.load(path);
+    const data = await this._loadData(path, "getSpriteFrames");
     const spriteFrames: cc.SpriteFrame[] = [];
 
     for (let i = 0; i < data.variantCount; i++) {
-      spriteFrames.push(await this.getSpriteFrame(path, i));
+      const result = createPdpackSpriteFrame(data, i);
+      this._trackSpriteFrame(path, result.spriteFrame);
+      spriteFrames.push(result.spriteFrame);
     }
 
     return spriteFrames;
@@ -74,12 +75,9 @@ export class PdpackManager {
    * 返回对象由 pdpackManager 托管，调用方不再使用时必须调用 releaseTexture。
    */
   async getTexture(path: string, variant: PdpackVariantSelector = 0): Promise<cc.Texture2D> {
-    const data = await this.load(path, variant);
+    const data = await this._loadData(path, "getTexture");
     const result = createPdpackTexture(data, variant);
-    this._textures.push({
-      path,
-      texture: result.texture,
-    });
+    this._trackTexture(path, result.texture);
     return result.texture;
   }
 
@@ -88,11 +86,13 @@ export class PdpackManager {
    * 返回数组内每一项都由 pdpackManager 托管，可用 releaseTextures 批量释放。
    */
   async getTextures(path: string): Promise<cc.Texture2D[]> {
-    const data = await this.load(path);
+    const data = await this._loadData(path, "getTextures");
     const textures: cc.Texture2D[] = [];
 
     for (let i = 0; i < data.variantCount; i++) {
-      textures.push(await this.getTexture(path, i));
+      const result = createPdpackTexture(data, i);
+      this._trackTexture(path, result.texture);
+      textures.push(result.texture);
     }
 
     return textures;
@@ -155,6 +155,30 @@ export class PdpackManager {
     for (const texture of textures) {
       this.releaseTexture(texture);
     }
+  }
+
+  private async _loadData(path: string, method: string): Promise<PdpackData> {
+    this._requirePath(path, method);
+
+    if (!this._packs[path]) {
+      this._packs[path] = PdpackLoader.load(path);
+    }
+
+    return this._packs[path];
+  }
+
+  private _trackSpriteFrame(path: string, spriteFrame: cc.SpriteFrame): void {
+    this._spriteFrames.push({
+      path,
+      spriteFrame,
+    });
+  }
+
+  private _trackTexture(path: string, texture: cc.Texture2D): void {
+    this._textures.push({
+      path,
+      texture,
+    });
   }
 
   private _releaseSpriteFramesByPath(path: string): void {

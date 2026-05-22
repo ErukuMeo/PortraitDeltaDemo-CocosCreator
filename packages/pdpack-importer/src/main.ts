@@ -54,8 +54,6 @@ function registerMeta() {
     // });
     Editor.metas[META_KEY] = Meta; // Ensure the main key is set for AssetDB recognition
 
-    Editor.log(JSON.stringify(Editor.metas));
-
     if (!Editor.assetdb || typeof Editor.assetdb.register !== "function") {
         if (!loggedWaitingForAssetDb) {
             Editor.warn("[pdpack-importer] Editor.assetdb.register is not ready; waiting for AssetDB.");
@@ -202,11 +200,6 @@ module.exports = {
             if (registerMeta()) {
                 refreshExistingPdpackAssets("asset-db:assets-ready");
             }
-        },
-
-        "pdpack:test"() {
-            Editor.log("test");
-            Editor.log(JSON.stringify(Object.getOwnPropertySymbols(Editor.assetdb)));
         },
     },
 };

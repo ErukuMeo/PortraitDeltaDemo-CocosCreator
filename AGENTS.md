@@ -43,7 +43,7 @@ packages/pdpack-importer
     ├── core/PdpackCoreTypes.ts
     ├── PdpackLoader.ts
     ├── PdpackManager.ts
-    ├── PdpackSpriteFrame.ts
+    ├── PdpackRenderFactory.ts
     ├── PdpackData.ts
     ├── RawImage.ts
     ├── UPNG.ts
@@ -59,7 +59,7 @@ PortraitDemoUI
   -> PdpackLoader.parse()
   -> PdpackCore.parseContainer()
   -> RawImage.fromPng()
-  -> PdpackSpriteFrame.createPdpackSpriteFrame()
+  -> PdpackRenderFactory.createPdpackSpriteFrame()
   -> merged Texture2D / SpriteFrame
 ```
 
@@ -81,9 +81,9 @@ packages/pdpack-importer/dist/src/main.js
 | `core/PdpackCore.ts` | Reads PDPK header, offset table, metadata JSON, base PNG bytes, and region PNG bytes |
 | `core/PdpackCoreTypes.ts` | Parser result contracts used by editor and runtime |
 | `PdpackLoader.ts` | Registers `.pdpack` downloader/factory, loads by path/UUID/remote URL, handles Android native file reads |
-| `PdpackManager.ts` | Non-component runtime API for loading, SpriteFrame creation, and explicit release |
-| `PdpackSpriteFrame.ts` | Shared variant resolution, pixel merge, SpriteFrame creation, and destruction |
-| `PdpackData.ts` | Runtime data model consumed by manager and SpriteFrame creation |
+| `PdpackManager.ts` | Non-component runtime API for loading, variant listing, Cocos resource creation, and explicit release |
+| `PdpackRenderFactory.ts` | Shared variant resolution, pixel merge, Texture2D/SpriteFrame creation, and destruction |
+| `PdpackData.ts` | Internal runtime data model consumed by manager and render resource creation |
 | `RawImage.ts` | RGBA pixel container, PNG decode bridge, `Texture2D.initWithData` output |
 | `UPNG.ts` | Pure JavaScript PNG decoder; keep as vendored decoder code |
 | `pdpack-asset.js` | Runtime `cc.PdPackAsset` class registration |
@@ -148,7 +148,7 @@ Not allowed in `PdpackCore`:
 - PNG decoding
 - `Texture2D` or `SpriteFrame` creation
 
-Keep PNG decode and rendering in runtime (`RawImage`, `PdpackSpriteFrame`, `PdpackManager`). Keep file I/O, AssetDB, and Inspector UI in the importer.
+Keep PNG decode and rendering in runtime (`RawImage`, `PdpackRenderFactory`, `PdpackManager`). Keep file I/O, AssetDB, and Inspector UI in the importer.
 
 ## Binary Format
 
